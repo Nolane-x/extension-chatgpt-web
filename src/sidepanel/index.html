@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Nolane Sentinel</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <div class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div><div class="eyebrow">NOLANE SENTINEL</div><h1 data-i18n="controlRoom">Phòng điều khiển ChatGPT</h1></div>
+      </div>
+      <div class="health-chip" id="monitorHealth"><i></i><span>Khởi tạo</span></div>
+    </header>
+
+    <section class="command-deck" aria-label="Điều khiển toàn cục">
+      <button class="primary-command" id="openChat"><span class="plus">＋</span><span data-i18n="openNew">Mở ChatGPT mới</span></button>
+      <button class="deck-toggle" id="toggleDeep" aria-pressed="false"><span class="toggle-dot"></span><span>Deep Observe</span></button>
+      <button class="deck-toggle" id="togglePause" aria-pressed="false"><span class="toggle-dot"></span><span data-i18n="automation">Tự động hóa</span></button>
+    </section>
+
+    <nav class="nav-rail" aria-label="Điều hướng">
+      <button class="nav-item active" data-view="overview"><span>◫</span><b data-i18n="overview">Tổng quan</b></button>
+      <button class="nav-item" data-view="files"><span>⇩</span><b data-i18n="files">Tệp</b><em id="fileBadge">0</em></button>
+      <button class="nav-item" data-view="automation"><span>↻</span><b data-i18n="automation">Tự động hóa</b></button>
+      <button class="nav-item" data-view="bridge"><span>⌁</span><b data-i18n="agentPort">Cổng AI</b></button>
+      <button class="nav-item" data-view="settings"><span>⚙</span><b data-i18n="settings">Cài đặt</b></button>
+    </nav>
+
+    <main id="viewRoot" tabindex="-1"></main>
+    <div id="toastHost" aria-live="polite" aria-atomic="true"></div>
+  </div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
