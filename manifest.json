@@ -1,0 +1,57 @@
+{
+  "manifest_version": 3,
+  "name": "__MSG_appName__",
+  "short_name": "Nolane Sentinel",
+  "version": "0.2.0",
+  "minimum_chrome_version": "120",
+  "description": "__MSG_appDescription__",
+  "default_locale": "vi",
+  "permissions": [
+    "tabs",
+    "storage",
+    "debugger",
+    "downloads",
+    "sidePanel",
+    "nativeMessaging",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*"
+  ],
+  "background": {
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*"
+      ],
+      "js": [
+        "src/content/observer.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_title": "Mở Nolane Sentinel"
+  },
+  "side_panel": {
+    "default_path": "src/sidepanel/index.html"
+  },
+  "commands": {
+    "open-new-chat": {
+      "suggested_key": {
+        "default": "Alt+Shift+N"
+      },
+      "description": "Mở ChatGPT mới"
+    },
+    "toggle-automation-pause": {
+      "suggested_key": {
+        "default": "Alt+Shift+P"
+      },
+      "description": "Tạm dừng/tiếp tục tự động hóa"
+    }
+  }
+}
