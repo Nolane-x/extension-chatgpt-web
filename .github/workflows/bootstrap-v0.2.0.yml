@@ -11,7 +11,7 @@ permissions:
 
 env:
   SOURCE_SHA256: a3f8bd88f628d083b9e02fd5a58c314c8f9f7c1391e8e7b7fb4a45b44f02b7d4
-  EXPECTED_PARTS: '9'
+  EXPECTED_PARTS: '10'
   RELEASE_TAG: v0.2.0
 
 jobs:
