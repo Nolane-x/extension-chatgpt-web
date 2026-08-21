@@ -1,0 +1,10 @@
+node_modules/
+.DS_Store
+*.log
+*.crx
+*.pem
+*.zip
+coverage/
+dist/
+.ui-preview.html
+!release/**/*.zip
