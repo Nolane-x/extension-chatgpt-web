@@ -1,8 +1,8 @@
 # Task Control Plane + MCP
 
-Task Control Plane là lớp runtime nối **Task Orchestrator Core** với Session Runtime, Chrome actions và Native Bridge/MCP.
+Task Control Plane là lớp runtime nối **Task Orchestrator Core** với Session Runtime, Chrome actions và Native Bridge/MCP của Vigilume.
 
-Mục tiêu của lớp này là để AI agent thao tác theo **công việc + worker + lease**, thay vì gửi trực tiếp vào một `tabId` và tự giữ hàng loạt bookkeeping bên ngoài Sentinel.
+Mục tiêu của lớp này là để AI agent thao tác theo **công việc + worker + lease**, thay vì gửi trực tiếp vào một `tabId` và tự giữ hàng loạt bookkeeping bên ngoài Vigilume.
 
 ## Boundary
 
@@ -78,36 +78,13 @@ Thiếu một lớp => action fail, không fallback sang worker khác.
 
 ## Acquire best worker
 
-`task_acquire_best_worker` là primitive cấp cao dành cho agent:
-
-```json
-{
-  "taskId": "task_...",
-  "ownerId": "agent-coder-1",
-  "ttlMs": 30000,
-  "intent": "send",
-  "preferredConversationId": "optional"
-}
-```
-
-Kết quả trả:
-
-```json
-{
-  "worker": { "id": "worker_...", "tabId": 123 },
-  "lease": { "id": "lease_...", "expiresAt": 0 },
-  "score": 115,
-  "reasons": ["state:IDLE", "health:healthy"]
-}
-```
-
-Worker đang `DEEP_THINKING`, `STREAMING`, `TOOL_RUNNING`, `COMPLETING` hoặc `DOM_DRIFT` không được chọn cho send mới.
+`task_acquire_best_worker` là primitive cấp cao dành cho agent. Worker đang `DEEP_THINKING`, `STREAMING`, `TOOL_RUNNING`, `COMPLETING` hoặc `DOM_DRIFT` không được chọn cho send mới.
 
 ## Bind isolation
 
 Một live ChatGPT tab chỉ được bound vào **một task** tại một thời điểm. Nếu tab đã thuộc một task khác, `task_bind_worker` trả `WORKER_ALREADY_BOUND`.
 
-Lý do: nếu cho cùng một tab nằm trong hai task, mỗi task có thể tạo lease riêng và cả hai cùng tin rằng mình sở hữu worker.
+Nếu cho cùng một tab nằm trong hai task, mỗi task có thể tạo lease riêng và cả hai cùng tin rằng mình sở hữu worker; invariant này ngăn đúng lớp race đó.
 
 ## Session synchronization
 
@@ -160,35 +137,18 @@ broadcast task.action.sent
 
 ## Task wait
 
-Agent chỉ cần giữ `workerId`, không cần tự lưu `tabId`:
-
-```json
-{
-  "taskId": "task_...",
-  "workerId": "worker_...",
-  "states": ["COMPLETED", "FAILED", "CONVERSATION_LIMIT"],
-  "timeoutMs": 20000
-}
-```
-
-Control Plane resolve worker → live tab → `requestSnapshot()` loop hiện có.
+Agent chỉ cần giữ `workerId`, không cần tự lưu `tabId`; Control Plane resolve worker → live tab → `requestSnapshot()` loop hiện có.
 
 ## Human takeover
 
-Human takeover là internal UI command:
-
-```text
-taskHumanTakeover
-```
-
-Nó:
+Human takeover là internal UI command `taskHumanTakeover`:
 
 - chỉ được router chấp nhận khi source không phải agent;
 - cấp `ownerType=human`;
 - revoke valid agent lease bằng explicit `takeover=true`;
 - không tồn tại trong `MCP_TOOLS` / `TASK_ALIASES`.
 
-NUI Mission Control wave sẽ thêm nút **Tiếp quản** có trạng thái owner/TTL rõ ràng.
+NUI Mission Control hiển thị owner/TTL rõ trước thao tác **Tiếp quản**.
 
 ## Recovery plan
 
@@ -203,11 +163,11 @@ WAIT
 NONE
 ```
 
-Control Plane hiện **không tự execute** recovery plan. Wave sau có thể thêm policy executor nhưng vẫn phải qua lease/session guards.
+Control Plane **không tự execute** recovery plan. Bất kỳ policy executor nào về sau vẫn phải qua lease/session guards.
 
 ## Native Bridge package
 
-Native Bridge import shared registry:
+Vigilume Native Bridge import shared registry:
 
 ```js
 import { TASK_MCP_TOOLS, TASK_TOOL_ACTION }
@@ -217,9 +177,9 @@ import { TASK_MCP_TOOLS, TASK_TOOL_ACTION }
 Native release ZIP phải giữ:
 
 - `package.json` với `type: module`;
-- `native-host/**`;
+- `native-host/**` hiện hành;
 - `src/core/task-protocol.js`;
-- protocol/security docs.
+- protocol/security/disclaimer docs.
 
 Điều này đặc biệt quan trọng với Node.js 20: nếu thiếu package scope ESM, shared `.js` registry có thể bị hiểu sai module format.
 
