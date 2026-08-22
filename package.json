@@ -3,6 +3,15 @@
   "version": "0.3.0",
   "private": true,
   "type": "module",
+  "description": "Nolane Sentinel — ChatGPT Web supervisory runtime and multi-worker task orchestrator.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nolane-x/gptweb.git"
+  },
+  "homepage": "https://github.com/Nolane-x/gptweb#readme",
+  "bugs": {
+    "url": "https://github.com/Nolane-x/gptweb/issues"
+  },
   "scripts": {
     "test": "node --test tests/*.test.js",
     "verify": "node scripts/verify-extension.mjs",
