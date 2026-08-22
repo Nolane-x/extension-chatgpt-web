@@ -6,7 +6,7 @@ export function leaseTimeLeftMs(lease,now=Date.now()){
 }
 
 export function isLiveLease(lease,now=Date.now()){
-  return Boolean(lease&&lease.status==='ACTIVE'&&leaseTimeLeftMs(lease,now)>0);
+  return Boolean(lease&&lease.revokedAt==null&&(lease.status==null||lease.status==='ACTIVE')&&leaseTimeLeftMs(lease,now)>0);
 }
 
 export function canHumanTakeover(worker,lease,now=Date.now()){
@@ -18,7 +18,7 @@ export function taskAttentionLevel(bundle,now=Date.now()){
   const workers=(bundle?.workers||[]).filter((worker)=>worker.detachedAt==null);
   if(workers.some((worker)=>CRITICAL_STATES.has(String(worker.lastKnownState||''))))return 'critical';
   if(String(task.status||'').toUpperCase()==='COMPLETED')return 'complete';
-  if(workers.length&&workers.every((worker)=>String(worker.lastKnownState||'')==='COMPLETED')return 'complete';
+  if(workers.length&&workers.every((worker)=>String(worker.lastKnownState||'')==='COMPLETED'))return 'complete';
   if(workers.some((worker)=>WORKING_STATES.has(String(worker.lastKnownState||''))))return 'working';
   return 'working';
 }
