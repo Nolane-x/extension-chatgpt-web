@@ -5,7 +5,7 @@ const now=1_800_000_000_000;
 const bundle={
  task:{id:'task_1',title:'Build <script>x</script>',goal:'Ship safely',status:'ACTIVE',updatedAt:now-1000},
  workers:[{id:'w1',taskId:'task_1',tabId:11,role:'coder',lastKnownState:'COMPLETED',lastSeenAt:now-1000,detachedAt:null}],
- leases:[{id:'l1',workerId:'w1',ownerId:'agent-a',ownerType:'agent',status:'ACTIVE',expiresAt:now+60000}],
+ leases:[{id:'l1',workerId:'w1',ownerId:'agent-a',ownerType:'agent',expiresAt:now+60000,revokedAt:null}],
  checkpoints:[{id:'cp1',taskId:'task_1',kind:'PROGRESS',summary:'done',createdAt:now-3000}],
  artifacts:[{id:'a1',taskId:'task_1',workerId:'w1',sessionArtifactId:'s1',tabId:11,name:'build.zip',kind:'file',downloadState:'complete',detectedAt:now-2000,provenance:{source:'session'}}]
 };
@@ -40,4 +40,12 @@ test('task detail shows send and queue controls when human-ui owns a live lease'
  assert.match(html,/data-action="task-send"/);
  assert.match(html,/data-action="task-queue-send"/);
  assert.match(html,/id="taskWorkerSelect"/);
+});
+
+test('non-active task does not render acquire-best or prompt composer even with a live human lease',()=>{
+ const paused={...bundle,task:{...bundle.task,status:'PAUSED'},leases:[{...bundle.leases[0],ownerId:'human-ui',ownerType:'human'}]};
+ const html=taskDetailHtml({bundle:paused,sessions:[],recovery:null,now});
+ assert.ok(!html.includes('data-action="task-acquire-best"'));
+ assert.ok(!html.includes('data-action="task-send"'));
+ assert.ok(!html.includes('data-action="task-queue-send"'));
 });
