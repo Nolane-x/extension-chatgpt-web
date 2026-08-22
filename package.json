@@ -1,9 +1,9 @@
 {
-  "name": "nolane-sentinel-chatgpt-web",
-  "version": "0.3.0",
+  "name": "vigilume-browser-runtime",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
-  "description": "Nolane Sentinel — ChatGPT Web supervisory runtime and multi-worker task orchestrator.",
+  "description": "Vigilume — ChatGPT Web supervisory runtime and multi-worker task orchestrator.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Nolane-x/gptweb.git"
