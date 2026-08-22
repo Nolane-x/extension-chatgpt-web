@@ -6,6 +6,11 @@ export function nextRetryDelay(attempt, options = {}) {
   return Math.round(raw * (1 + jitter));
 }
 
+export function automationDeliveryMode(rule={}){
+  if(rule.delivery==='direct'||rule.delivery==='safe_queue')return rule.delivery;
+  return rule.trigger==='time'&&rule.action?.type==='send'?'safe_queue':'direct';
+}
+
 export function automationDueAt(rule={},now=Date.now()) {
   if(!rule?.enabled||rule.trigger!=='time'||!rule.id||!rule.action?.type)return null;
   const runAt=Number(rule.runAt);if(!Number.isFinite(runAt)||runAt<=0)return null;
