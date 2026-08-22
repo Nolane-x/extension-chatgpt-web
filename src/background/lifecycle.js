@@ -48,11 +48,13 @@ export async function runWatchdog() {
     await requestSnapshot(tab.id).catch(()=>{});
     if(session?.stateInfo?.state==='DOM_DRIFT'&&!session.lastDiagnostic)captureDriftEvidence(session).catch(()=>{});
   }
+  const queueBefore=runtime.queuedActions.length;
   for(const tabId of [...sessions.keys()]){
     if(live.has(tabId))continue;
     sessions.delete(tabId);clearTelemetry(tabId);
     runtime.queuedActions=runtime.queuedActions.filter((item)=>item.tabId!==tabId);
   }
+  if(runtime.queuedActions.length!==queueBefore)await chrome.storage.local.set({queuedActions:runtime.queuedActions}).catch(()=>{});
   if(Date.now()-runtime.lastPruneAt>6*60*60*1000){
     runtime.lastPruneAt=Date.now();
     const cutoff=Date.now()-Math.max(1,runtime.settings.retentionDays||7)*86_400_000;
