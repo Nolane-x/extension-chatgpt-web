@@ -33,6 +33,14 @@ test('handoff checkpoint preserves context and artifact references',()=>{
   assert.deepEqual(checkpoint.metadata,{toWorkerId:'w2',toConversationId:'c-new'});
 });
 
+test('decision and failure checkpoints are valid resumability events',()=>{
+  const decision=createCheckpoint(baseTask(),{kind:'DECISION',summary:'Use worker B'},40);
+  const failure=createCheckpoint(decision.task,{kind:'FAILURE',summary:'Worker A lost connection'},50);
+  assert.equal(decision.checkpoint.kind,'DECISION');
+  assert.equal(failure.checkpoint.kind,'FAILURE');
+  assert.equal(failure.checkpoint.parentId,decision.checkpoint.id);
+});
+
 test('unsupported checkpoint kind is rejected',()=>{
   assert.throws(()=>createCheckpoint(baseTask(),{kind:'MAGIC',summary:'x'},10),(e)=>e?.code==='INVALID_TASK_STATE');
 });
