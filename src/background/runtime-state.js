@@ -1,5 +1,6 @@
 import { assessSessionHealth } from '../core/health.js';
 import { normalizeQueuedAction } from '../core/action-queue.js';
+import { appendActionTrace } from '../core/action-trace.js';
 import { readTelemetry } from './cdp.js';
 
 export const CHATGPT_PATTERN='https://chatgpt.com/*';
@@ -58,6 +59,12 @@ export async function storeScheduledAction(name,value){await chrome.storage.loca
 export async function takeScheduledAction(name){const key=scheduledStorageKey(name);const stored=await chrome.storage.local.get(key);await chrome.storage.local.remove(key);return stored[key]||null;}
 export async function saveQueue(){await chrome.storage.local.set({queuedActions:runtime.queuedActions});}
 
+export function recordActionTrace(tabId,entry){
+  const session=sessions.get(Number(tabId));if(!session)return null;
+  session.actionTrace=appendActionTrace(session.actionTrace,entry,40);
+  return session.actionTrace.at(-1)||null;
+}
+
 export function publicSession(session) {
   if(!session)return null;
   const s=session.stateInfo||{},telemetry=readTelemetry(session.tabId);
@@ -68,7 +75,8 @@ export function publicSession(session) {
     turnStartedAt:session.turnStartedAt||null,completedAt:session.completedAt||null,lastText:String(session.snapshot?.assistantText||'').slice(-1600),
     statusTexts:(session.snapshot?.statusTexts||[]).slice(-8),toolActivities:(session.snapshot?.toolActivities||[]).slice(-8),
     artifacts:(session.artifacts||[]).map(({responseHtml,...x})=>x),deep:session.deep||{attached:false},recovery:session.recovery||null,
-    queueCount:runtime.queuedActions.filter((x)=>x.tabId===session.tabId).length,lastSeenAt:session.lastSeenAt,domHealth:s.domHealth||{}
+    queueCount:runtime.queuedActions.filter((x)=>x.tabId===session.tabId).length,lastSeenAt:session.lastSeenAt,domHealth:s.domHealth||{},
+    actionTrace:(session.actionTrace||[]).slice(-24)
   };
   return {...base,health:assessSessionHealth(base,telemetry,Date.now())};
 }
@@ -80,7 +88,7 @@ export async function broadcast(event) {
 
 export function ensureSession(tabId,tab={}) {
   let session=sessions.get(tabId);
-  if(!session){session={tabId,windowId:tab.windowId??null,url:tab.url||'',title:tab.title||'ChatGPT',conversationId:null,lastSeenAt:Date.now(),stateInfo:{state:'DISCOVERED',confidence:.5,evidence:[]},artifacts:[],deep:{attached:false,error:null,lastAttachAttemptAt:0},recoveryAttempt:0};sessions.set(tabId,session);}
+  if(!session){session={tabId,windowId:tab.windowId??null,url:tab.url||'',title:tab.title||'ChatGPT',conversationId:null,lastSeenAt:Date.now(),stateInfo:{state:'DISCOVERED',confidence:.5,evidence:[]},artifacts:[],actionTrace:[],deep:{attached:false,error:null,lastAttachAttemptAt:0},recoveryAttempt:0};sessions.set(tabId,session);}
   if(tab.url)session.url=tab.url;if(tab.title)session.title=tab.title;if(tab.windowId!=null)session.windowId=tab.windowId;
   return session;
 }
