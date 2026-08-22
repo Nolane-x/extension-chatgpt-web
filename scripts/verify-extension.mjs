@@ -62,6 +62,7 @@ if (nativeHost.includes("u.protocol==='chrome-extension:'")) fail('HTTP bridge k
 for (const installer of ['native-host/install_host.sh','native-host/uninstall_host.sh','native-host/install_host.bat','native-host/uninstall_host.bat','native-host/nolane-sentinel-native-host','native-host/nolane-sentinel-native-host.bat']) if (!exists(installer)) fail(`Thiếu native installer/runtime: ${installer}`);
 const packageRelease=read('scripts/package-release.mjs');
 if(!packageRelease.includes("'src/core/task-protocol.js'"))fail('Native Bridge release ZIP phải chứa shared task protocol registry');
+if(!/const nativeFiles=\[[^\n]*'package\.json'/.test(packageRelease))fail('Native Bridge release ZIP phải chứa package.json để Node 20 giữ ESM semantics');
 
 const worker = read('src/background/service-worker.js');
 if (!worker.includes("bootstrapLifecycle")) fail('Service worker entrypoint phải bootstrap lifecycle module');
@@ -70,7 +71,7 @@ const backgroundRuntime = fs.readdirSync(backgroundDir)
   .filter((name)=>name.endsWith('.js'))
   .map((name)=>fs.readFileSync(path.join(backgroundDir,name),'utf8'))
   .join('\n');
-for (const marker of ['domHealth:s.domHealth||{}','domHealth:saved.domHealth||{}',"chrome.alarms.create('sentinel:watchdog'",'queueSend','waitUntil','downloadAllArtifacts','initializeNativeBridge','installSchedulerHooks','createSingleFlightGuard','missing_durable_action','orchestratorSync','initializeOrchestratorRuntime','handleOrchestratorCommand','detachOrchestratorTab']) {
+for (const marker of ['domHealth:s.domHealth||{}','domHealth:saved.domHealth||{}',"chrome.alarms.create('sentinel:watchdog'",'queueSend','waitUntil','downloadAllArtifacts','initializeNativeBridge','installSchedulerHooks','createSingleFlightGuard','missing_durable_action','orchestratorSync','initializeOrchestratorRuntime','handleOrchestratorCommand','detachOrchestratorTab','taskDashboard']) {
   if (!backgroundRuntime.includes(marker)) fail(`Thiếu runtime release marker: ${marker}`);
 }
 for (const requiredModule of ['runtime-state.js','session-runtime.js','action-controller.js','scheduler.js','control-plane.js','lifecycle.js','orchestrator-runtime.js','service-worker.js']) if (!exists(`src/background/${requiredModule}`)) fail(`Thiếu background module: ${requiredModule}`);
@@ -79,10 +80,20 @@ if (!exists('src/core/single-flight.js')) fail('Thiếu single-flight guard modu
 const orchestratorModules=['domain.js','leases.js','selection.js','recovery.js','checkpoints.js','artifacts.js','store-codec.js','store.js','index.js','service.js','commands.js'];
 for(const module of orchestratorModules)if(!exists(`src/orchestrator/${module}`))fail(`Thiếu Task Orchestrator module: ${module}`);
 const orchestratorRuntime=orchestratorModules.map((module)=>read(`src/orchestrator/${module}`)).join('\n');
-for(const marker of ['LEASE_CONFLICT','NO_ELIGIBLE_WORKER','DOM_DRIFT','nolane-sentinel-orchestrator-v1','checkpoint_','sessionArtifactId','openOrchestratorStore','assertWorkerLease','createOrchestratorService','createTaskCommandRouter','WORKER_ALREADY_BOUND'])if(!orchestratorRuntime.includes(marker))fail(`Thiếu Task Orchestrator marker: ${marker}`);
+for(const marker of ['LEASE_CONFLICT','NO_ELIGIBLE_WORKER','DOM_DRIFT','nolane-sentinel-orchestrator-v1','checkpoint_','sessionArtifactId','openOrchestratorStore','assertWorkerLease','createOrchestratorService','createTaskCommandRouter','WORKER_ALREADY_BOUND','TASK_NOT_ACTIVE'])if(!orchestratorRuntime.includes(marker))fail(`Thiếu Task Orchestrator marker: ${marker}`);
 const orchestratorFacade=read('src/orchestrator/index.js');
 for(const exported of ['createTask','acquireLease','selectWorker','createCheckpoint','recommendWorkerRecovery','mergeTaskArtifacts','loadOrchestratorSnapshot','createOrchestratorService'])if(!orchestratorFacade.includes(exported))fail(`Task Orchestrator facade thiếu export: ${exported}`);
 
+const sidepanelModules=['task-model.js','task-views.js','task-actions.js','bridge-view.js','mission-control.css'];
+for(const module of sidepanelModules)if(!exists(`src/sidepanel/${module}`))fail(`Thiếu Mission Control module: ${module}`);
+const sidepanelHtml=read('src/sidepanel/index.html'),sidepanelViews=read('src/sidepanel/views.js'),sidepanelActions=read('src/sidepanel/actions.js'),taskModel=read('src/sidepanel/task-model.js'),taskActions=read('src/sidepanel/task-actions.js'),bridgeView=read('src/sidepanel/bridge-view.js'),missionCss=read('src/sidepanel/mission-control.css');
+for(const marker of ['mission-control.css','data-view="tasks"','id="taskBadge"'])if(!sidepanelHtml.includes(marker))fail(`Mission Control navigation thiếu marker: ${marker}`);
+for(const marker of ['taskListHtml','taskDetailHtml','bridgeHtml'])if(!sidepanelViews.includes(marker))fail(`Mission Control router thiếu marker: ${marker}`);
+for(const marker of ['createTaskActionController','refreshTaskData'])if(!sidepanelActions.includes(marker))fail(`Mission Control action wiring thiếu marker: ${marker}`);
+for(const marker of ['revokedAt==null','lease.status==null'])if(!taskModel.includes(marker)||!taskActions.includes(marker))fail(`Mission Control lease semantics thiếu marker: ${marker}`);
+if(!bridgeView.includes('AGENT_SCOPES'))fail('AI Port phải render canonical AGENT_SCOPES');
+if(!missionCss.includes('grid-template-columns:repeat(6,1fr)')||!missionCss.includes('.lease-chip')||!missionCss.includes('.worker-pool'))fail('Mission Control visual system chưa được nối đầy đủ');
+
 const zipLib = read('scripts/zip-lib.mjs');
 if (!zipLib.includes('DOS_DATE') || !zipLib.includes('createDeterministicZip')) fail('Release ZIP phải dùng deterministic builder nội bộ');
-console.log(`verify-extension: PASS (${sourceFiles.length} source files scanned, ${toolNames.length} MCP tools checked, ${orchestratorModules.length} orchestrator modules)`);
+console.log(`verify-extension: PASS (${sourceFiles.length} source files scanned, ${toolNames.length} MCP tools checked, ${orchestratorModules.length} orchestrator modules, ${sidepanelModules.length} Mission Control modules)`);
