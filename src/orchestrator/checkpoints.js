@@ -1,4 +1,4 @@
-const KINDS=new Set(['CREATED','PROGRESS','HANDOFF','RECOVERY','ARTIFACT','COMPLETED','MANUAL']);
+const KINDS=new Set(['CREATED','PROGRESS','HANDOFF','RECOVERY','ARTIFACT','DECISION','FAILURE','COMPLETED','MANUAL']);
 
 function fail(code,message){const error=new Error(`${code}: ${message}`);error.code=code;throw error;}
 function clampText(value,limit=4000){return String(value??'').replace(/\u0000/g,'').trim().slice(0,limit);}
