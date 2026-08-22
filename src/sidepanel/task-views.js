@@ -1,0 +1,57 @@
+import { esc,stateText,fmtDuration,locale } from './model.js';
+import { buildTaskCardModel,buildTaskDetailModel,isLiveLease } from './task-model.js';
+
+const COPY={
+  vi:{tasks:'Công việc',subtitle:'Điều phối nhiều ChatGPT như một worker pool có lease và checkpoint.',newTask:'Tạo công việc',title:'Tiêu đề',goal:'Mục tiêu',create:'Tạo task',open:'Mở',workers:'worker',leased:'đang có lease',artifacts:'artifact',noTasks:'Chưa có công việc. Tạo task rồi bind một hoặc nhiều tab ChatGPT để bắt đầu.',back:'Quay lại',bind:'Gắn tab',acquireBest:'Lấy worker tốt nhất',workerPool:'Worker pool',takeover:'Tiếp quản',acquire:'Nhận quyền',release:'Nhả quyền',detached:'Đã tách',lease:'Lease',expires:'còn',focus:'Mở tab',control:'Điều khiển task',prompt:'Prompt cho worker đang giữ lease của bạn',send:'Gửi ngay',queue:'Xếp Safe Queue',noHumanLease:'Bạn chưa giữ lease nào. Nhận quyền một worker hoặc Tiếp quản lease agent trước khi gửi.',recovery:'Kế hoạch phục hồi',checkpoint:'Checkpoint',checkpointSummary:'Tóm tắt checkpoint',saveCheckpoint:'Lưu checkpoint',history:'Lịch sử checkpoint',artifactInbox:'Artifact Inbox',download:'Tải',complete:'Hoàn tất task',pause:'Tạm dừng',activate:'Kích hoạt'},
+  en:{tasks:'Tasks',subtitle:'Coordinate multiple ChatGPT tabs as a leased, checkpointed worker pool.',newTask:'Create task',title:'Title',goal:'Goal',create:'Create task',open:'Open',workers:'workers',leased:'leased',artifacts:'artifacts',noTasks:'No tasks yet. Create one and bind one or more ChatGPT tabs.',back:'Back',bind:'Bind tab',acquireBest:'Acquire best worker',workerPool:'Worker pool',takeover:'Take over',acquire:'Acquire',release:'Release',detached:'Detached',lease:'Lease',expires:'left',focus:'Focus tab',control:'Task control',prompt:'Prompt for a worker you currently lease',send:'Send now',queue:'Safe Queue',noHumanLease:'You do not own a live lease. Acquire a worker or take over an agent lease before sending.',recovery:'Recovery plan',checkpoint:'Checkpoint',checkpointSummary:'Checkpoint summary',saveCheckpoint:'Save checkpoint',history:'Checkpoint history',artifactInbox:'Artifact Inbox',download:'Download',complete:'Complete task',pause:'Pause',activate:'Activate'}
+};
+const tx=(key)=>COPY[locale()]?.[key]||COPY.vi[key]||key;
+const attnLabel={critical:'CẦN XỬ LÝ',complete:'HOÀN TẤT',working:'ĐANG HOẠT ĐỘNG'};
+
+function taskCard(bundle,now){
+  const m=buildTaskCardModel(bundle,now),workers=(bundle.workers||[]).filter(w=>w.detachedAt==null).slice(0,4);
+  return `<article class="task-card task-${esc(m.attention)}">
+    <div class="task-card-head"><div><span class="task-kicker">${esc(attnLabel[m.attention]||m.status||'TASK')}</span><h3>${esc(m.title||'Task')}</h3></div><button class="task-open" data-action="task-open" data-task="${esc(m.id)}">${esc(tx('open'))}</button></div>
+    <p class="task-goal">${esc(m.goal||'')}</p>
+    <div class="task-metrics"><span><b>${m.activeWorkerCount}</b> ${esc(tx('workers'))}</span><span><b>${m.leasedWorkerCount}</b> ${esc(tx('leased'))}</span><span><b>${m.artifactCount}</b> ${esc(tx('artifacts'))}</span></div>
+    <div class="task-worker-strip">${workers.map(w=>`<span class="worker-dot state-${esc(String(w.lastKnownState||'').toLowerCase())}" title="${esc(stateText(w.lastKnownState))}">${esc(String(w.role||'W').slice(0,2).toUpperCase())}</span>`).join('')||'<span class="muted">No worker</span>'}</div>
+  </article>`;
+}
+
+export function taskListHtml({taskBundles=[],sessions=[],now=Date.now()}={}){
+  const bundles=Array.isArray(taskBundles)?taskBundles:[];
+  return `<section class="mission-hero"><div><span class="eyebrow">MISSION CONTROL</span><h2>${esc(tx('tasks'))}</h2><p>${esc(tx('subtitle'))}</p></div><div class="mission-count"><strong>${bundles.length}</strong><span>task</span></div></section>
+  <section class="task-create-panel"><div class="field"><label>${esc(tx('title'))}</label><input id="taskTitle" maxlength="180" placeholder="Release v0.3.0"></div><div class="field"><label>${esc(tx('goal'))}</label><textarea id="taskGoal" rows="3" maxlength="20000" placeholder="Mục tiêu, tiêu chí hoàn tất, artifact cần tạo..."></textarea></div><button class="primary-inline" data-action="task-create">＋ ${esc(tx('create'))}</button></section>
+  <div class="task-grid">${bundles.length?bundles.map(bundle=>taskCard(bundle,now)).join(''):`<section class="empty-state"><div class="glyph">⌘</div><h3>${esc(tx('newTask'))}</h3><p>${esc(tx('noTasks'))}</p></section>`}</div>`;
+}
+
+function workerLeaseView(worker,now){
+  if(worker.detachedAt!=null)return `<span class="lease-chip detached">${esc(tx('detached'))}</span>`;
+  if(!worker.lease)return `<span class="lease-chip free">FREE</span>`;
+  return `<span class="lease-chip ${worker.lease.ownerType==='agent'?'agent':'human'}">${esc(worker.lease.ownerType)} · ${esc(worker.lease.ownerId)} · ${esc(tx('expires'))} ${esc(fmtDuration(now,now+worker.lease.timeLeftMs))}</span>`;
+}
+
+function workerActions(worker){
+  if(worker.detachedAt!=null)return '';
+  const focus=`<button class="small-button ghost" data-action="focus" data-tab="${worker.tabId}">${esc(tx('focus'))}</button>`;
+  if(!worker.lease)return `${focus}<button class="small-button" data-action="task-acquire-lease" data-worker="${esc(worker.id)}">${esc(tx('acquire'))}</button>`;
+  if(worker.canHumanTakeover)return `${focus}<button class="small-button danger-soft" data-action="task-human-takeover" data-worker="${esc(worker.id)}">${esc(tx('takeover'))}</button>`;
+  if(worker.lease.ownerType==='human'&&worker.lease.ownerId==='human-ui')return `${focus}<button class="small-button" data-action="task-release-lease" data-worker="${esc(worker.id)}" data-lease="${esc(worker.lease.id)}">${esc(tx('release'))}</button>`;
+  return focus;
+}
+
+export function taskDetailHtml({bundle,sessions=[],recovery=null,now=Date.now()}={}){
+  if(!bundle?.task)return `<section class="empty-state"><p>Task not found.</p></section>`;
+  const model=buildTaskDetailModel(bundle,now),task=model.task;
+  const liveHuman=model.workers.filter(w=>w.detachedAt==null&&w.lease?.ownerType==='human'&&w.lease?.ownerId==='human-ui'&&isLiveLease(w.lease,now));
+  const sessionOptions=(sessions||[]).map(s=>`<option value="${Number(s.tabId)}">Tab ${Number(s.tabId)} · ${esc(s.title||'ChatGPT')}</option>`).join('');
+  const recoveryRows=(recovery?.recommendations||[]).map(row=>`<div class="recovery-row action-${esc(String(row.recommendation?.action||'none').toLowerCase())}"><strong>${esc(row.recommendation?.action||'NONE')}</strong><span>${esc(row.worker?.role||row.worker?.id||'worker')}</span><p>${esc(row.recommendation?.reason||'')}</p></div>`).join('');
+  return `<section class="task-detail-head"><button class="back-button" data-action="task-back">← ${esc(tx('back'))}</button><div class="task-title-block"><span class="task-kicker">${esc(task.status||'ACTIVE')} · ${esc(model.attention)}</span><h2>${esc(task.title)}</h2><p>${esc(task.goal)}</p></div><div class="task-head-actions"><button class="small-button" data-action="task-acquire-best">${esc(tx('acquireBest'))}</button><button class="small-button ghost" data-action="task-recovery-plan">${esc(tx('recovery'))}</button>${task.status==='ACTIVE'?`<button class="small-button ghost" data-action="task-status" data-status="PAUSED">${esc(tx('pause'))}</button><button class="small-button" data-action="task-status" data-status="COMPLETED">${esc(tx('complete'))}</button>`:`<button class="small-button" data-action="task-status" data-status="ACTIVE">${esc(tx('activate'))}</button>`}</div></section>
+  <section class="task-bind-bar"><select id="taskBindTab"><option value="">ChatGPT tab…</option>${sessionOptions}</select><input id="taskBindRole" maxlength="120" value="worker" aria-label="Worker role"><button class="small-button" data-action="task-bind-worker">＋ ${esc(tx('bind'))}</button></section>
+  <div class="section-head"><div><h2>${esc(tx('workerPool'))}</h2><p>${model.workers.filter(w=>w.detachedAt==null).length} live · ${model.workers.filter(w=>w.detachedAt!=null).length} detached</p></div></div>
+  <section class="worker-pool">${model.workers.map(w=>`<article class="worker-card ${w.detachedAt!=null?'is-detached':''}"><div class="worker-card-main"><div class="worker-avatar">${esc(String(w.role||'W').slice(0,2).toUpperCase())}</div><div><strong>${esc(w.role||'worker')}</strong><span>Tab ${w.tabId} · ${esc(stateText(w.lastKnownState))}</span></div></div>${workerLeaseView(w,now)}<div class="worker-actions">${workerActions(w)}</div></article>`).join('')||'<div class="empty-state"><p>No workers bound.</p></div>'}</section>
+  <div class="section-head"><div><h2>${esc(tx('control'))}</h2><p>${esc(tx('prompt'))}</p></div></div>
+  ${liveHuman.length?`<section class="task-control-card"><select id="taskWorkerSelect">${liveHuman.map(w=>`<option value="${esc(w.id)}" data-lease="${esc(w.lease.id)}">${esc(w.role||'worker')} · Tab ${w.tabId}</option>`).join('')}</select><textarea id="taskPrompt" rows="5" placeholder="Giao việc tiếp theo cho ChatGPT worker..."></textarea><div class="task-control-actions"><button class="primary-inline" data-action="task-send">${esc(tx('send'))}</button><button class="small-button" data-action="task-queue-send">${esc(tx('queue'))}</button></div></section>`:`<section class="lease-required"><strong>${esc(tx('lease'))} required</strong><p>${esc(tx('noHumanLease'))}</p></section>`}
+  <div class="task-two-col"><section><div class="section-head"><div><h2>${esc(tx('checkpoint'))}</h2><p>Append-only task memory</p></div></div><div class="checkpoint-create"><select id="taskCheckpointKind"><option>PROGRESS</option><option>HANDOFF</option><option>DECISION</option><option>FAILURE</option></select><textarea id="taskCheckpointSummary" rows="3" placeholder="${esc(tx('checkpointSummary'))}"></textarea><button class="small-button" data-action="task-checkpoint">${esc(tx('saveCheckpoint'))}</button></div><div class="checkpoint-list">${model.checkpoints.map(cp=>`<article><span>${esc(cp.kind||'PROGRESS')}</span><strong>${esc(cp.summary||'')}</strong><small>${new Date(cp.createdAt||0).toLocaleString()}</small></article>`).join('')||'<p class="muted">No checkpoint.</p>'}</div></section><section><div class="section-head"><div><h2>${esc(tx('recovery'))}</h2><p>WAIT / RETRY / HANDOFF / REPLACE / HUMAN_REVIEW</p></div></div><div class="recovery-list">${recoveryRows||'<p class="muted">Bấm Kế hoạch phục hồi để đánh giá worker.</p>'}</div></section></div>
+  <div class="section-head"><div><h2>${esc(tx('artifactInbox'))}</h2><p>${model.artifacts.length} artifact with provenance</p></div></div><section class="task-artifact-list">${model.artifacts.map(a=>`<article class="artifact-card"><div class="artifact-icon">${esc(String(a.kind||'file').slice(0,4).toUpperCase())}</div><div class="artifact-meta"><strong>${esc(a.name||a.id)}</strong><span>${esc(a.provenance?.source||'session')} · worker ${esc(a.workerId||'—')} · ${esc(a.downloadState||'observed')}</span></div>${a.kind==='file'&&a.tabId&&a.sessionArtifactId?`<button data-action="task-download-artifact" data-tab="${Number(a.tabId)}" data-artifact="${esc(a.sessionArtifactId)}">${esc(tx('download'))}</button>`:''}</article>`).join('')||'<div class="empty-state"><p>No task artifact yet.</p></div>'}</section>`;
+}
