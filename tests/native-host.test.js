@@ -23,15 +23,17 @@ async function waitForListening(child, timeoutMs=5000) {
   });
 }
 
-test('native bridge starts on loopback and serves MCP 2026-07-28 discovery', async () => {
-  const home=await mkdtemp(path.join(os.tmpdir(),'nolane-sentinel-test-'));
+test('Vigilume native bridge starts on loopback and serves MCP 2026-07-28 discovery', async () => {
+  const home=await mkdtemp(path.join(os.tmpdir(),'vigilume-test-'));
   const port=await freePort();
-  const child=spawn(process.execPath,['native-host/nolane_bridge.mjs'],{ cwd:process.cwd(),env:{...process.env,HOME:home,USERPROFILE:home,NOLANE_SENTINEL_PORT:String(port)},stdio:['pipe','pipe','pipe'] });
+  const child=spawn(process.execPath,['native-host/vigilume_bridge.mjs'],{ cwd:process.cwd(),env:{...process.env,HOME:home,USERPROFILE:home,VIGILUME_PORT:String(port)},stdio:['pipe','pipe','pipe'] });
   try {
     await waitForListening(child);
-    const tokenData=JSON.parse(await readFile(path.join(home,'.nolane-sentinel','bridge-token.json'),'utf8'));
+    const tokenData=JSON.parse(await readFile(path.join(home,'.vigilume','bridge-token.json'),'utf8'));
     const health=await fetch(`http://127.0.0.1:${port}/health`).then(r=>r.json());
     assert.equal(health.ok,true);
+    assert.equal(health.name,'vigilume-bridge');
+    assert.equal(health.version,'0.3.1');
     assert.equal(health.protocol,'2026-07-28');
 
     const body={jsonrpc:'2.0',id:'discover',method:'server/discover',params:{_meta:{ 'io.modelcontextprotocol/protocolVersion':'2026-07-28', 'io.modelcontextprotocol/clientInfo':{name:'test-client',version:'1.0.0'}, 'io.modelcontextprotocol/clientCapabilities':{} }}};
@@ -40,7 +42,7 @@ test('native bridge starts on loopback and serves MCP 2026-07-28 discovery', asy
     const rpc=await response.json();
     assert.equal(rpc.result.resultType,'complete');
     assert.deepEqual(rpc.result.supportedVersions,['2026-07-28']);
-    assert.equal(rpc.result._meta['io.modelcontextprotocol/serverInfo'].name,'nolane-sentinel-bridge');
+    assert.equal(rpc.result._meta['io.modelcontextprotocol/serverInfo'].name,'vigilume-bridge');
 
     const toolsBody={jsonrpc:'2.0',id:'tools',method:'tools/list',params:{_meta:{ 'io.modelcontextprotocol/protocolVersion':'2026-07-28', 'io.modelcontextprotocol/clientInfo':{name:'test-client',version:'1.0.0'}, 'io.modelcontextprotocol/clientCapabilities':{} }}};
     const toolsResponse=await fetch(`http://127.0.0.1:${port}/mcp`,{ method:'POST',headers:{authorization:`Bearer ${tokenData.token}`,'content-type':'application/json','MCP-Protocol-Version':'2026-07-28','Mcp-Method':'tools/list'},body:JSON.stringify(toolsBody) });
