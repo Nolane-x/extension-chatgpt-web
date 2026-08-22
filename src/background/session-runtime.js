@@ -68,6 +68,7 @@ export async function processSnapshot(tabId,rawSnapshot,telemetry=readTelemetry(
     session.lastBroadcastAt=Date.now();await broadcast({kind:'session.pulse',session:publicSession(session)});await runtime.hooks.sessionPulse(session).catch(()=>{});
   }
   await runtime.hooks.queueReconcile(session).catch(()=>{});
+  await runtime.hooks.orchestratorSync(session).catch(()=>{});
   persistSession(session).catch(()=>{});
   return publicSession(session);
 }
