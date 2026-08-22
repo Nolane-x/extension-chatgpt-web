@@ -47,7 +47,9 @@ test('native bridge starts on loopback and serves MCP 2026-07-28 discovery', asy
     assert.equal(toolsResponse.status,200);
     const toolsRpc=await toolsResponse.json();
     const names=new Set(toolsRpc.result.tools.map(x=>x.name));
-    for(const name of ['chatgpt_queue_send','chatgpt_wait_until','chatgpt_diagnose','chatgpt_download_all_artifacts']) assert.ok(names.has(name));
+    assert.equal(toolsRpc.result.tools.length,39);
+    for(const name of ['chatgpt_queue_send','chatgpt_wait_until','chatgpt_diagnose','chatgpt_download_all_artifacts','task_create','task_acquire_best_worker','task_send','task_queue_send','task_recovery_plan']) assert.ok(names.has(name),name);
+    assert.ok(!names.has('task_human_takeover'));
   } finally {
     child.kill('SIGTERM');
     await new Promise(resolve=>child.once('exit',resolve));
