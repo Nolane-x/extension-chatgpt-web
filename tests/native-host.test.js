@@ -6,6 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
 
+const packageJson=JSON.parse(await readFile('package.json','utf8'));
+
 async function freePort() {
   const server=net.createServer();
   await new Promise((resolve,reject)=>server.listen(0,'127.0.0.1',resolve).once('error',reject));
@@ -33,7 +35,7 @@ test('Vigilume native bridge starts on loopback and serves MCP 2026-07-28 discov
     const health=await fetch(`http://127.0.0.1:${port}/health`).then(r=>r.json());
     assert.equal(health.ok,true);
     assert.equal(health.name,'vigilume-bridge');
-    assert.equal(health.version,'0.3.1');
+    assert.equal(health.version,packageJson.version);
     assert.equal(health.protocol,'2026-07-28');
 
     const body={jsonrpc:'2.0',id:'discover',method:'server/discover',params:{_meta:{ 'io.modelcontextprotocol/protocolVersion':'2026-07-28', 'io.modelcontextprotocol/clientInfo':{name:'test-client',version:'1.0.0'}, 'io.modelcontextprotocol/clientCapabilities':{} }}};
@@ -43,6 +45,7 @@ test('Vigilume native bridge starts on loopback and serves MCP 2026-07-28 discov
     assert.equal(rpc.result.resultType,'complete');
     assert.deepEqual(rpc.result.supportedVersions,['2026-07-28']);
     assert.equal(rpc.result._meta['io.modelcontextprotocol/serverInfo'].name,'vigilume-bridge');
+    assert.equal(rpc.result._meta['io.modelcontextprotocol/serverInfo'].version,packageJson.version);
 
     const toolsBody={jsonrpc:'2.0',id:'tools',method:'tools/list',params:{_meta:{ 'io.modelcontextprotocol/protocolVersion':'2026-07-28', 'io.modelcontextprotocol/clientInfo':{name:'test-client',version:'1.0.0'}, 'io.modelcontextprotocol/clientCapabilities':{} }}};
     const toolsResponse=await fetch(`http://127.0.0.1:${port}/mcp`,{ method:'POST',headers:{authorization:`Bearer ${tokenData.token}`,'content-type':'application/json','MCP-Protocol-Version':'2026-07-28','Mcp-Method':'tools/list'},body:JSON.stringify(toolsBody) });
