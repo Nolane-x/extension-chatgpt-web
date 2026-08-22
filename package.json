@@ -1,6 +1,6 @@
 {
   "name": "vigilume-browser-runtime",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "type": "module",
   "description": "Vigilume — ChatGPT Web supervisory runtime and multi-worker task orchestrator.",
