@@ -25,12 +25,14 @@ export function createTaskActionController({ui,command,toast,now=()=>Date.now()}
   async function refreshTaskData({detail=true}={}){
     ui.dashboard.tasks=await command('taskDashboard');
     if(detail&&ui.selectedTaskId){
-      try{
-        ui.taskDetail=await command('taskGet',{taskId:ui.selectedTaskId,includeCheckpoints:true});
-        const renew=leasesNeedingHeartbeat(ui.taskDetail,now(),120_000);
-        for(const item of renew)await command('taskHeartbeatLease',{taskId:ui.selectedTaskId,workerId:item.worker.id,leaseId:item.lease.id,ownerId:HUMAN_OWNER_ID,ttlMs:HUMAN_LEASE_TTL_MS});
-        if(renew.length)ui.taskDetail=await command('taskGet',{taskId:ui.selectedTaskId,includeCheckpoints:true});
-      }catch(error){ui.selectedTaskId=null;ui.taskDetail=null;ui.taskRecovery=null;ui.view='tasks';throw error;}
+      try{ui.taskDetail=await command('taskGet',{taskId:ui.selectedTaskId,includeCheckpoints:true});}
+      catch(error){ui.selectedTaskId=null;ui.taskDetail=null;ui.taskRecovery=null;ui.view='tasks';throw error;}
+      const renew=leasesNeedingHeartbeat(ui.taskDetail,now(),120_000);
+      for(const item of renew)await command('taskHeartbeatLease',{taskId:ui.selectedTaskId,workerId:item.worker.id,leaseId:item.lease.id,ownerId:HUMAN_OWNER_ID,ttlMs:HUMAN_LEASE_TTL_MS}).catch(()=>{});
+      if(renew.length){
+        try{ui.taskDetail=await command('taskGet',{taskId:ui.selectedTaskId,includeCheckpoints:true});}
+        catch(error){ui.selectedTaskId=null;ui.taskDetail=null;ui.taskRecovery=null;ui.view='tasks';throw error;}
+      }
     }
     return ui.dashboard.tasks;
   }
