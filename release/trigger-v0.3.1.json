@@ -1,0 +1,7 @@
+{
+  "version": "0.3.1",
+  "sourceCommit": "04f2fb39b15510073e5cf612e3152b5e56a764d1",
+  "verificationProof": "verification/latest.json",
+  "requestedAt": "2026-08-22T03:01:00Z",
+  "intent": "verify-package-mirror-tag-publish-and-prove-release-object"
+}
