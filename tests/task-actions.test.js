@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findHumanLease,buildTaskSendParams,leasesNeedingHeartbeat } from '../src/sidepanel/task-actions.js';
+import { findHumanLease,buildTaskSendParams,leasesNeedingHeartbeat,createTaskActionController } from '../src/sidepanel/task-actions.js';
 const now=1_800_000_000_000;
 const bundle={task:{id:'task_1'},workers:[{id:'w1',taskId:'task_1'}],leases:[
  {id:'agent',workerId:'w1',ownerId:'agent-a',ownerType:'agent',expiresAt:now+50000,revokedAt:null},
@@ -35,4 +35,13 @@ test('human lease helpers accept production lease shape without status',()=>{
  const real={...bundle,leases:[{id:'real-human',workerId:'w1',ownerId:'human-ui',ownerType:'human',expiresAt:now+60000,revokedAt:null}]};
  assert.equal(findHumanLease(real,'w1',now)?.id,'real-human');
  assert.deepEqual(leasesNeedingHeartbeat(real,now,120000).map(x=>x.lease.id),['real-human']);
+});
+
+test('heartbeat failure does not eject the user from task detail',async()=>{
+ const localUi={dashboard:{tasks:[]},selectedTaskId:'task_1',taskDetail:null,taskRecovery:null,view:'task-detail'};
+ const realBundle={task:{id:'task_1'},workers:[{id:'w1',taskId:'task_1',detachedAt:null}],leases:[{id:'human-near',workerId:'w1',ownerId:'human-ui',ownerType:'human',expiresAt:now+60000,revokedAt:null}],checkpoints:[],artifacts:[]};
+ const command=async(name)=>{if(name==='taskDashboard')return [realBundle];if(name==='taskGet')return realBundle;if(name==='taskHeartbeatLease')throw new Error('LEASE_REVOKED');throw new Error(name);};
+ const controller=createTaskActionController({ui:localUi,command,now:()=>now});
+ await controller.refreshTaskData({detail:true});
+ assert.equal(localUi.selectedTaskId,'task_1');assert.equal(localUi.view,'task-detail');assert.equal(localUi.taskDetail.task.id,'task_1');
 });
