@@ -1,7 +1,8 @@
 #!/bin/sh
 set -eu
-HOST_NAME="com.nolane.sentinel_bridge"
-FLAVOR="${NOLANE_CHROME_FLAVOR:-chrome}"
+HOST_NAME="com.vigilume.bridge"
+LEGACY_HOST_NAME="com.nolane.sentinel_bridge"
+FLAVOR="${VIGILUME_CHROME_FLAVOR:-${NOLANE_CHROME_FLAVOR:-chrome}}"
 case "$(uname -s)" in
   Darwin)
     case "$FLAVOR" in
@@ -17,5 +18,5 @@ case "$(uname -s)" in
     esac ;;
   *) echo "Hệ điều hành không được script POSIX hỗ trợ." >&2; exit 4 ;;
 esac
-rm -f "$DIR/$HOST_NAME.json"
-echo "Đã gỡ Native Messaging host của Nolane Sentinel."
+rm -f "$DIR/$HOST_NAME.json" "$DIR/$LEGACY_HOST_NAME.json"
+echo "Đã gỡ Vigilume Native Messaging host và legacy registration nếu có."
