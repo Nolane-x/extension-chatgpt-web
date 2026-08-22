@@ -37,6 +37,7 @@ jobs:
         shell: bash
         run: |
           VERSION="$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version")"
+          MCP_TOOLS="$(node --input-type=module -e "import('./src/core/protocol.js').then(m=>console.log(m.MCP_TOOLS.length))")"
           mkdir -p verification
           cat > verification/latest.json <<JSON
           {
@@ -47,7 +48,7 @@ jobs:
             "staticRuntimeVerification": "PASS",
             "deterministicPackaging": "PASS",
             "checksumVerification": "PASS",
-            "mcpTools": 23
+            "mcpTools": $MCP_TOOLS
           }
           JSON
           git config user.name 'github-actions[bot]'
