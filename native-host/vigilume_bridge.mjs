@@ -9,7 +9,7 @@ import { TASK_MCP_TOOLS,TASK_TOOL_ACTION } from '../src/core/task-protocol.js';
 const HOST='127.0.0.1';
 const PORT=Number(process.env.VIGILUME_PORT||process.env.NOLANE_SENTINEL_PORT||17892);
 const PROTOCOL='2026-07-28';
-const VERSION='0.3.1';
+const VERSION='0.3.2';
 const SERVER_INFO={name:'vigilume-bridge',version:VERSION};
 const CONFIG_DIR=path.join(os.homedir(),'.vigilume');
 const TOKEN_PATH=path.join(CONFIG_DIR,'bridge-token.json');
