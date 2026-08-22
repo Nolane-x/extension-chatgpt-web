@@ -23,6 +23,7 @@ test('task detail exposes explicit agent takeover and worker controls',()=>{
  assert.match(html,/data-action="task-human-takeover"/);
  assert.match(html,/agent-a/);
  assert.match(html,/data-action="task-bind-worker"/);
+ assert.match(html,/data-action="task-detach-worker"/);
  assert.match(html,/data-action="task-acquire-best"/);
  assert.match(html,/data-action="task-checkpoint"/);
  assert.match(html,/build.zip/);
