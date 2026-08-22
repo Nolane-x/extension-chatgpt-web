@@ -52,6 +52,10 @@ export function createTaskActionController({ui,command,toast,now=()=>Date.now()}
     if(!taskId)throw new Error('Chưa chọn task.');
     if(action==='task-bind-worker'){
       const tabId=Number(document.getElementById('taskBindTab')?.value),role=document.getElementById('taskBindRole')?.value?.trim()||'worker';if(!Number.isInteger(tabId)||tabId<=0)throw new Error('Hãy chọn một ChatGPT tab.');await command('taskBindWorker',{taskId,tabId,role});notify('Đã gắn ChatGPT worker.');
+    }else if(action==='task-detach-worker'){
+      const workerId=String(target.dataset.worker||'');if(!workerId)throw new Error('Worker ID trống.');
+      if(typeof confirm==='function'&&!confirm('Tách worker khỏi task? Lịch sử checkpoint và artifact vẫn được giữ.'))return true;
+      await command('taskDetachWorker',{taskId,workerId});notify('Đã tách worker; lịch sử task vẫn được giữ.');
     }else if(action==='task-acquire-lease'){
       await command('taskAcquireLease',{taskId,workerId:target.dataset.worker,ownerId:HUMAN_OWNER_ID,ownerType:'human',ttlMs:HUMAN_LEASE_TTL_MS});notify('Bạn đã nhận quyền worker.');
     }else if(action==='task-human-takeover'){
