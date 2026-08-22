@@ -6,7 +6,8 @@ const required=[
   'createTask','updateTask','createWorkerBinding','detachWorker',
   'acquireLease','heartbeatLease','releaseLease','assertWorkerLease',
   'selectWorker','createCheckpoint','recommendWorkerRecovery','mergeTaskArtifacts',
-  'openOrchestratorStore','loadOrchestratorSnapshot','saveTask','saveWorker','saveLease','saveCheckpoint','saveArtifacts'
+  'openOrchestratorStore','loadOrchestratorSnapshot','saveTask','saveWorker','saveLease','saveCheckpoint','saveArtifacts',
+  'createOrchestratorService'
 ];
 
 test('orchestrator public facade exposes all stable core contracts',()=>{
