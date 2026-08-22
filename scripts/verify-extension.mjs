@@ -28,17 +28,17 @@ for (const file of referenced) if (!exists(file)) fail(`Manifest/runtime tham ch
 for (const locale of ['vi','en']) { const messages = JSON.parse(read(`_locales/${locale}/messages.json`)); if (!messages.appName?.message || !messages.appDescription?.message) fail(`Locale ${locale} thiếu appName/appDescription`); }
 
 const sourceFiles = [];
-function walk(dir) { for (const entry of fs.readdirSync(dir, { withFileTypes:true })) { if (['.git','node_modules','dist','release'].includes(entry.name)) continue; const full = path.join(dir, entry.name); if (entry.isDirectory()) walk(full); else sourceFiles.push(full); } }
+function walk(dir) { for (const entry of fs.readdirSync(dir, { withFileTypes:true })) { if (['.git','node_modules','dist','release','bootstrap'].includes(entry.name)) continue; const full = path.join(dir, entry.name); if (entry.isDirectory()) walk(full); else sourceFiles.push(full); } }
 walk(root);
 for (const full of sourceFiles.filter((file) => /\.(?:js|mjs)$/.test(file))) execFileSync(process.execPath, ['--check', full], { stdio:'pipe' });
 for (const full of sourceFiles.filter((file) => /\.(?:js|mjs)$/.test(file))) {
   const text = fs.readFileSync(full, 'utf8');
-  for (const match of text.matchAll(/\b(?:import|export)\s+(?:[^'"]*?\sfrom\s*)?['"](\.{1,2}\/[^'"]+)['"]/g)) { const target = path.resolve(path.dirname(full), match[1]); if (!fs.existsSync(target)) fail(`Relative import không tồn tại: ${path.relative(root, full)} -> ${match[1]}`); }
+  for (const match of text.matchAll(/\b(?:import|export)\s+(?:[^'\"]*?\sfrom\s*)?['\"](\.{1,2}\/[^'\"]+)['\"]/g)) { const target = path.resolve(path.dirname(full), match[1]); if (!fs.existsSync(target)) fail(`Relative import không tồn tại: ${path.relative(root, full)} -> ${match[1]}`); }
 }
 for (const full of sourceFiles.filter((file) => /\.(?:html|js|mjs)$/.test(file))) {
   const text = fs.readFileSync(full, 'utf8'), relative = path.relative(root, full);
-  if (/<script\b[^>]*\bsrc\s*=\s*["']https?:\/\//i.test(text)) fail(`Remote script bị cấm trong ${relative}`);
-  if (/\bimport\s*(?:\(|[^;]*?\bfrom\s*)["']https?:\/\//i.test(text)) fail(`Remote JS import bị cấm trong ${relative}`);
+  if (/<script\b[^>]*\bsrc\s*=\s*[\"']https?:\/\//i.test(text)) fail(`Remote script bị cấm trong ${relative}`);
+  if (/\bimport\s*(?:\(|[^;]*?\bfrom\s*)[\"']https?:\/\//i.test(text)) fail(`Remote JS import bị cấm trong ${relative}`);
   if (/\beval\s*\(|\bnew\s+Function\s*\(/.test(text)) fail(`Dynamic code execution bị cấm trong ${relative}`);
 }
 
@@ -51,9 +51,16 @@ if (nativeHost.includes("u.protocol==='chrome-extension:'")) fail('HTTP bridge k
 for (const installer of ['native-host/install_host.sh','native-host/uninstall_host.sh','native-host/install_host.bat','native-host/uninstall_host.bat','native-host/nolane-sentinel-native-host','native-host/nolane-sentinel-native-host.bat']) if (!exists(installer)) fail(`Thiếu native installer/runtime: ${installer}`);
 
 const worker = read('src/background/service-worker.js');
-if (!worker.includes('domHealth:s.domHealth||{}') || !worker.includes('domHealth:saved.domHealth||{}')) fail('DOM health phải được persist/restore qua worker restart');
-if (!worker.includes("chrome.alarms.create('sentinel:watchdog'")) fail('Thiếu watchdog alarm');
-if (!worker.includes('queueSend') || !worker.includes('waitUntil') || !worker.includes('downloadAllArtifacts')) fail('Thiếu control-plane release features');
+if (!worker.includes("bootstrapLifecycle")) fail('Service worker entrypoint phải bootstrap lifecycle module');
+const backgroundDir = path.join(root,'src/background');
+const backgroundRuntime = fs.readdirSync(backgroundDir)
+  .filter((name)=>name.endsWith('.js'))
+  .map((name)=>fs.readFileSync(path.join(backgroundDir,name),'utf8'))
+  .join('\n');
+for (const marker of ['domHealth:s.domHealth||{}','domHealth:saved.domHealth||{}',"chrome.alarms.create('sentinel:watchdog'",'queueSend','waitUntil','downloadAllArtifacts','initializeNativeBridge','installSchedulerHooks']) {
+  if (!backgroundRuntime.includes(marker)) fail(`Thiếu runtime release marker: ${marker}`);
+}
+for (const requiredModule of ['runtime-state.js','session-runtime.js','action-controller.js','scheduler.js','control-plane.js','lifecycle.js','service-worker.js']) if (!exists(`src/background/${requiredModule}`)) fail(`Thiếu background module: ${requiredModule}`);
 const zipLib = read('scripts/zip-lib.mjs');
 if (!zipLib.includes('DOS_DATE') || !zipLib.includes('createDeterministicZip')) fail('Release ZIP phải dùng deterministic builder nội bộ');
 console.log(`verify-extension: PASS (${sourceFiles.length} source files scanned, ${requiredTools.length} MCP tools checked)`);
