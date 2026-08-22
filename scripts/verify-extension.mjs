@@ -14,7 +14,9 @@ const nativeHost = read('native-host/nolane_bridge.mjs');
 if (manifest.manifest_version !== 3) fail('manifest_version phải là 3');
 if (Number(manifest.minimum_chrome_version || 0) < 120) fail('minimum_chrome_version phải >= 120');
 if (manifest.version !== packageJson.version) fail('Version manifest/package.json không đồng bộ');
-if (!nativeHost.includes(`version:'${manifest.version}'`)) fail('Version native bridge không đồng bộ với extension');
+if (!nativeHost.includes(`const VERSION='${manifest.version}'`)) fail('Version native bridge không đồng bộ với extension');
+if (!nativeHost.includes("SERVER_INFO={name:'nolane-sentinel-bridge',version:VERSION}")) fail('Native bridge phải dùng VERSION chung cho server info');
+if (!nativeHost.includes("version:VERSION,protocol:PROTOCOL")) fail('Native bridge health endpoint phải dùng VERSION chung');
 if (manifest.default_locale !== 'vi') fail('default_locale phải là vi');
 if (manifest.name !== '__MSG_appName__' || manifest.description !== '__MSG_appDescription__') fail('Manifest phải dùng localized name/description');
 for (const permission of ['tabs','storage','debugger','downloads','sidePanel','nativeMessaging','alarms']) if (!manifest.permissions?.includes(permission)) fail(`Thiếu permission bắt buộc: ${permission}`);
@@ -57,10 +59,11 @@ const backgroundRuntime = fs.readdirSync(backgroundDir)
   .filter((name)=>name.endsWith('.js'))
   .map((name)=>fs.readFileSync(path.join(backgroundDir,name),'utf8'))
   .join('\n');
-for (const marker of ['domHealth:s.domHealth||{}','domHealth:saved.domHealth||{}',"chrome.alarms.create('sentinel:watchdog'",'queueSend','waitUntil','downloadAllArtifacts','initializeNativeBridge','installSchedulerHooks']) {
+for (const marker of ['domHealth:s.domHealth||{}','domHealth:saved.domHealth||{}',"chrome.alarms.create('sentinel:watchdog'",'queueSend','waitUntil','downloadAllArtifacts','initializeNativeBridge','installSchedulerHooks','createSingleFlightGuard','missing_durable_action']) {
   if (!backgroundRuntime.includes(marker)) fail(`Thiếu runtime release marker: ${marker}`);
 }
 for (const requiredModule of ['runtime-state.js','session-runtime.js','action-controller.js','scheduler.js','control-plane.js','lifecycle.js','service-worker.js']) if (!exists(`src/background/${requiredModule}`)) fail(`Thiếu background module: ${requiredModule}`);
+if (!exists('src/core/single-flight.js')) fail('Thiếu single-flight guard module');
 const zipLib = read('scripts/zip-lib.mjs');
 if (!zipLib.includes('DOS_DATE') || !zipLib.includes('createDeterministicZip')) fail('Release ZIP phải dùng deterministic builder nội bộ');
 console.log(`verify-extension: PASS (${sourceFiles.length} source files scanned, ${requiredTools.length} MCP tools checked)`);
