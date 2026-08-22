@@ -1,10 +1,10 @@
 # Miễn trừ trách nhiệm
 
-Nolane Sentinel / repository `Nolane-x/gptweb` là một dự án phần mềm độc lập. Tài liệu này nhằm làm rõ phạm vi sử dụng và trách nhiệm; **không phải tư vấn pháp lý**.
+Vigilume / repository `Nolane-x/gptweb` là một dự án phần mềm độc lập. Tài liệu này nhằm làm rõ phạm vi sử dụng và trách nhiệm; **không phải tư vấn pháp lý**.
 
 ## 1. Không liên kết với OpenAI
 
-Nolane Sentinel **không phải sản phẩm của OpenAI, không được OpenAI tài trợ, chứng thực, phê duyệt hoặc liên kết chính thức**.
+Vigilume **không phải sản phẩm của OpenAI, không được OpenAI tài trợ, chứng thực, phê duyệt hoặc liên kết chính thức**.
 
 Tên `OpenAI`, `ChatGPT` và các nhãn hiệu, tên sản phẩm hoặc logo liên quan thuộc chủ sở hữu tương ứng. Việc đề cập đến ChatGPT chỉ nhằm mô tả khả năng tương tác kỹ thuật của phần mềm.
 
@@ -22,14 +22,14 @@ ChatGPT Web có thể thay đổi theo account, model, feature rollout và thờ
 
 ## 3. Người dùng chịu trách nhiệm về cách sử dụng
 
-Người dùng chịu trách nhiệm tự đảm bảo việc sử dụng Nolane Sentinel phù hợp với:
+Người dùng chịu trách nhiệm tự đảm bảo việc sử dụng Vigilume phù hợp với:
 
 - điều khoản dịch vụ và chính sách của OpenAI/ChatGPT;
 - điều khoản của GitHub hoặc dịch vụ bên thứ ba mà người dùng kết nối;
 - pháp luật, quy định, chính sách nội bộ và quyền truy cập áp dụng cho người dùng;
 - quyền riêng tư, bản quyền, bí mật kinh doanh và dữ liệu của bên thứ ba.
 
-Nolane Sentinel không được thiết kế để bypass đăng nhập, rate limit, usage limit, access control hoặc cơ chế bảo vệ của ChatGPT.
+Vigilume không được thiết kế để bypass đăng nhập, rate limit, usage limit, access control hoặc cơ chế bảo vệ của ChatGPT.
 
 ## 4. Quyền AI agent và tự động hóa
 
@@ -50,7 +50,7 @@ Lease, scope guard, audit trail và human takeover là các biện pháp giảm 
 
 File do ChatGPT, tool, connector, GitHub hoặc dịch vụ bên thứ ba tạo ra có thể chứa nội dung sai, độc hại hoặc không an toàn.
 
-Nolane Sentinel **không tự thực thi file tải về**. Người dùng có trách nhiệm:
+Vigilume **không tự thực thi file tải về**. Người dùng có trách nhiệm:
 
 - kiểm tra nguồn gốc và nội dung file;
 - quét malware khi phù hợp;
@@ -61,21 +61,21 @@ Artifact classification chỉ là tín hiệu kỹ thuật, **không phải ch�
 
 ## 6. Dữ liệu và quyền riêng tư
 
-Nolane Sentinel có thể xử lý dữ liệu nhạy cảm trong browser profile, bao gồm chat content hiển thị, Context Vault, download path, task metadata và bearer token của Native Bridge.
+Vigilume có thể xử lý dữ liệu nhạy cảm trong browser profile, bao gồm chat content hiển thị, Context Vault, download path, task metadata và bearer token của Native Bridge.
 
-Người dùng chịu trách nhiệm bảo vệ máy tính, browser profile, token, bản sao lưu và quyền truy cập hệ điều hành. Một local account/process đã bị compromise có thể vượt ra ngoài threat model của Sentinel.
+Người dùng chịu trách nhiệm bảo vệ máy tính, browser profile, token, bản sao lưu và quyền truy cập hệ điều hành. Một local account/process đã bị compromise có thể vượt ra ngoài threat model của Vigilume.
 
 Không đưa bearer token, browser profile, Context Vault hoặc screenshot chứa dữ liệu nhạy cảm vào issue/log công khai.
 
 ## 7. Không dùng làm cơ sở duy nhất cho quyết định rủi ro cao
 
-Không nên dựa duy nhất vào Nolane Sentinel, ChatGPT hoặc một AI agent được kết nối để đưa ra hoặc tự động thực hiện các quyết định có hậu quả cao về y tế, pháp lý, tài chính, an toàn, tuyển dụng, quyền truy cập hoặc các lĩnh vực được quản lý khác.
+Không nên dựa duy nhất vào Vigilume, ChatGPT hoặc một AI agent được kết nối để đưa ra hoặc tự động thực hiện các quyết định có hậu quả cao về y tế, pháp lý, tài chính, an toàn, tuyển dụng, quyền truy cập hoặc các lĩnh vực được quản lý khác.
 
 Luôn có bước kiểm tra của con người và chuyên gia phù hợp khi bối cảnh yêu cầu.
 
 ## 8. Chi phí, quota và tài khoản
 
-Nolane Sentinel không kiểm soát giá, quota, rate limit, usage limit, account restriction hoặc thay đổi sản phẩm của OpenAI hay dịch vụ bên thứ ba.
+Vigilume không kiểm soát giá, quota, rate limit, usage limit, account restriction hoặc thay đổi sản phẩm của OpenAI hay dịch vụ bên thứ ba.
 
 Người dùng chịu trách nhiệm theo dõi chi phí, quota, tài khoản và hậu quả của các request do automation/agent của mình tạo ra.
 
@@ -87,7 +87,7 @@ Không có nội dung nào trong tài liệu này nhằm loại trừ trách nhi
 
 ## 10. Tương thích và thay đổi tương lai
 
-Không có cam kết rằng một phiên bản Sentinel sẽ tiếp tục tương thích với mọi phiên bản tương lai của ChatGPT Web, Chrome, MCP, Native Messaging, GitHub hoặc Node.js.
+Không có cam kết rằng một phiên bản Vigilume sẽ tiếp tục tương thích với mọi phiên bản tương lai của ChatGPT Web, Chrome, MCP, Native Messaging, GitHub hoặc Node.js.
 
 Người dùng nên đọc release notes, kiểm checksum, thử trên môi trường phù hợp và giữ khả năng rollback trước khi dùng automation quan trọng.
 
