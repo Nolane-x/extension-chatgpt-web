@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "tag": "v0.2.0",
+  "tagTarget": "f79ab99d04fc532309ff8517d5a8f5b86a3f1db1",
+  "artifactMirrorCommit": "f79ab99d04fc532309ff8517d5a8f5b86a3f1db1",
+  "tagComparedToArtifactCommit": "identical",
+  "releaseMirror": "release/v0.2.0",
+  "checksums": {
+    "nolane-sentinel-v0.2.0-extension.zip": "a5122f6fca459c5fe2232a56bf538fe260f4668748a2b2dfee83ea41a5d2d513",
+    "nolane-sentinel-v0.2.0-native-bridge.zip": "a1ff86d07621da66dc8230501382013ef0872ee89807bc95bae55d6246cb9211",
+    "nolane-sentinel-v0.2.0-source.zip": "355d8d79595895b10f54278f3425550ff78643deec024161b4116834e0d2248e"
+  },
+  "remoteVerification": {
+    "tests": "PASS",
+    "staticRuntimeVerification": "PASS",
+    "deterministicPackaging": "PASS",
+    "checksumVerification": "PASS",
+    "mcpTools": 23
+  },
+  "note": "Tag và artifact mirror được xác minh trực tiếp qua GitHub connector. Release workflow có bước gh release create/upload sau tag; connector hiện không expose API đọc GitHub Release object nên không tự suy diễn trạng thái UI của Release page."
+}
