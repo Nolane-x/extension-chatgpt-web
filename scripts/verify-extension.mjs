@@ -86,13 +86,28 @@ for(const exported of ['createTask','acquireLease','selectWorker','createCheckpo
 
 const sidepanelModules=['task-model.js','task-views.js','task-actions.js','bridge-view.js','mission-control.css'];
 for(const module of sidepanelModules)if(!exists(`src/sidepanel/${module}`))fail(`Thiếu Mission Control module: ${module}`);
-const sidepanelHtml=read('src/sidepanel/index.html'),sidepanelViews=read('src/sidepanel/views.js'),sidepanelActions=read('src/sidepanel/actions.js'),taskModel=read('src/sidepanel/task-model.js'),taskActions=read('src/sidepanel/task-actions.js'),bridgeView=read('src/sidepanel/bridge-view.js'),missionCss=read('src/sidepanel/mission-control.css');
+const sidepanelHtml=read('src/sidepanel/index.html'),sidepanelViews=read('src/sidepanel/views.js'),sidepanelActions=read('src/sidepanel/actions.js'),taskModel=read('src/sidepanel/task-model.js'),taskActions=read('src/sidepanel/task-actions.js'),taskViews=read('src/sidepanel/task-views.js'),bridgeView=read('src/sidepanel/bridge-view.js'),missionCss=read('src/sidepanel/mission-control.css');
 for(const marker of ['mission-control.css','data-view="tasks"','id="taskBadge"'])if(!sidepanelHtml.includes(marker))fail(`Mission Control navigation thiếu marker: ${marker}`);
 for(const marker of ['taskListHtml','taskDetailHtml','bridgeHtml'])if(!sidepanelViews.includes(marker))fail(`Mission Control router thiếu marker: ${marker}`);
 for(const marker of ['createTaskActionController','refreshTaskData'])if(!sidepanelActions.includes(marker))fail(`Mission Control action wiring thiếu marker: ${marker}`);
 for(const marker of ['revokedAt==null','lease.status==null'])if(!taskModel.includes(marker)||!taskActions.includes(marker))fail(`Mission Control lease semantics thiếu marker: ${marker}`);
 if(!bridgeView.includes('AGENT_SCOPES'))fail('AI Port phải render canonical AGENT_SCOPES');
 if(!missionCss.includes('grid-template-columns:repeat(6,1fr)')||!missionCss.includes('.lease-chip')||!missionCss.includes('.worker-pool'))fail('Mission Control visual system chưa được nối đầy đủ');
+
+const checkpointRuntime=read('src/orchestrator/checkpoints.js');
+for(const kind of ['DECISION','FAILURE']){
+  if(!checkpointRuntime.includes(`'${kind}'`))fail(`Task checkpoint core thiếu kind: ${kind}`);
+  if(!taskViews.includes(`<option>${kind}</option>`))fail(`Mission Control checkpoint UI thiếu kind: ${kind}`);
+}
+
+const readme=read('README.md'),protocolDoc=read('docs/protocol.md');
+const protocolLabel=manifest.version.split('.').slice(0,2).join('.');
+if(!readme.includes(`**Phiên bản:** \`${manifest.version}\``))fail('README version không khớp manifest');
+if(!readme.includes('39 MCP tools'))fail('README phải ghi rõ 39 MCP tools');
+if(readme.includes('nolane-sentinel-v0.2.0-'))fail('README còn đường dẫn artifact v0.2.0 cũ');
+if(!protocolDoc.startsWith(`# Nolane Sentinel Agent Protocol v${protocolLabel}`))fail('Protocol document version không khớp extension major/minor');
+if(!protocolDoc.includes('- `DECISION`')||!protocolDoc.includes('- `FAILURE`'))fail('Protocol document thiếu checkpoint DECISION/FAILURE');
+if(!exists(`RELEASE_NOTES_v${manifest.version}.md`))fail(`Thiếu release notes cho v${manifest.version}`);
 
 const zipLib = read('scripts/zip-lib.mjs');
 if (!zipLib.includes('DOS_DATE') || !zipLib.includes('createDeterministicZip')) fail('Release ZIP phải dùng deterministic builder nội bộ');
