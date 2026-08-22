@@ -24,6 +24,7 @@ test('Mission Control runtime uses an internal dashboard command without adding 
   const runtime=read('src/background/orchestrator-runtime.js');
   const taskProtocol=read('src/core/task-protocol.js');
   assert.match(runtime,/action==='taskDashboard'/);
+  assert.match(runtime,/includeCheckpoints:true/);
   assert.doesNotMatch(taskProtocol,/task_dashboard/i);
 });
 
