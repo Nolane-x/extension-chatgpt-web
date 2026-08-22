@@ -1,10 +1,12 @@
-# Nolane Sentinel Agent Protocol v0.2
+# Nolane Sentinel Agent Protocol v0.3
 
 ## Boundary
 
 Extension là authority cuối về tab/state/action. Native bridge không tự động hóa ChatGPT trực tiếp; nó chỉ chuyển yêu cầu đã xác thực sang extension qua Chrome Native Messaging. Quyền cuối cùng luôn do `agentScopes` trong extension quyết định.
 
 Task Control Plane bổ sung một authority thứ hai cho action cấp task: **lease hợp lệ trên worker**. Có `send` scope nhưng lease sai/hết hạn/revoked vẫn không được gửi.
+
+Task work còn có state guard: `task_acquire_best_worker`, `task_send` và `task_queue_send` chỉ hợp lệ khi task ở `ACTIVE`; task `PAUSED`, `COMPLETED`, `FAILED`, `CANCELLED` fail-closed với `TASK_NOT_ACTIVE`.
 
 ## JSON-RPC/HTTP
 
@@ -121,6 +123,8 @@ Lease là khóa quyền thao tác một worker ChatGPT:
 - `taskHumanTakeover` chỉ là command nội bộ UI và **không tồn tại trong MCP**;
 - `task_send` / `task_queue_send` kiểm `taskId + workerId + leaseId + ownerId` trước action.
 
+Production lease record dùng `revokedAt + expiresAt` làm nguồn sự thật về liveness; UI không giả định phải có một trường `status` riêng.
+
 Flow khuyến nghị cho agent:
 
 ```text
@@ -205,6 +209,8 @@ Kind hỗ trợ:
 - `HANDOFF`
 - `RECOVERY`
 - `ARTIFACT`
+- `DECISION`
+- `FAILURE`
 - `COMPLETED`
 - `MANUAL`
 
