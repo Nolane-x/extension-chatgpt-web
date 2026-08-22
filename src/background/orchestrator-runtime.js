@@ -81,5 +81,5 @@ export async function detachOrchestratorTab(tabId,now=Date.now()){
 
 export async function getOrchestratorDashboard(){
   await initializeOrchestratorRuntime();
-  return orchestratorService.listTasks().map((task)=>orchestratorService.getTask(task.id,{includeCheckpoints:false}));
+  return orchestratorService.listTasks().map((task)=>orchestratorService.getTask(task.id,{includeCheckpoints:true}));
 }
