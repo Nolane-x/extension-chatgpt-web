@@ -7,7 +7,7 @@ export function overviewHtml(){const s=ui.dashboard.sessions;return `${metricsHt
 
 function actionTraceHtml(s){
   const trace=(s.actionTrace||[]).slice(-24).reverse();
-  return `<div class="section-head"><div><h2>Luồng gửi lệnh</h2><p>${trace.length} stage gần nhất · không lưu nội dung prompt</p></div></div><section class="timeline action-trace">${trace.map((e)=>`<div class="timeline-row"><time>${esc(fmtClock(e.timestamp))}</time><div class="timeline-line"></div><p><b>${esc(e.stage||'ACTION')}</b><br>${esc([e.action,e.source,e.state,e.queueId?`queue ${e.queueId}`:'',e.ruleId?`rule ${e.ruleId}`:'',e.error||e.detail||''].filter(Boolean).join(' · '))}</p></div>`).join('')||'<p class="session-copy">Chưa có action trace. Khi Queue/Automation gửi, các bước PRECHECK → COMPOSING → DISPATCHED → ACCEPTED/FAILED sẽ xuất hiện ở đây.</p>'}</section>`;
+  return `<div class="section-head"><div><h2>Luồng gửi lệnh</h2><p>${trace.length} stage gần nhất · không lưu nội dung prompt</p></div></div><section class="timeline action-trace">${trace.map((e)=>`<div class="timeline-row"><time>${esc(fmtClock(e.timestamp))}</time><div class="timeline-line"></div><p><b>${esc(e.stage||'ACTION')}</b><br>${esc([e.action,e.source,e.state,e.queueId?`queue ${e.queueId}`:'',e.ruleId?`rule ${e.ruleId}`:'',e.error||e.detail||''].filter(Boolean).join(' · '))}</p></div>`).join('')||'<p class="session-copy">Chưa có action trace. Gửi trực tiếp: SEND_PRECHECK → SEND_COMPOSING → SEND_DISPATCHED → SEND_ACCEPTED. Safe Queue: QUEUE_CREATED → QUEUE_SCHEDULED → QUEUE_CLAIMED → SEND_* → QUEUE_EXECUTED. Automation: AUTOMATION_TRIGGERED → AUTOMATION_QUEUED hoặc SEND_* → AUTOMATION_EXECUTED.</p>'}</section>`;
 }
 
 export function microscopeHtml(tabId){
