@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createTaskCommandRouter } from '../src/orchestrator/commands.js';
 
-function fakeService(){
+function fakeService(taskStatus='ACTIVE'){
   const calls=[];
   const service={
     calls,
-    createTask:async(...a)=>{calls.push(['createTask',...a]);return {id:'t'};},listTasks:(...a)=>{calls.push(['listTasks',...a]);return [{id:'t'}];},getTask:(...a)=>{calls.push(['getTask',...a]);return {task:{id:'t'}};},updateTask:async(...a)=>{calls.push(['updateTask',...a]);return {id:'t'};},bindWorker:async(...a)=>{calls.push(['bindWorker',...a]);return {id:'w'};},detachWorker:async(...a)=>{calls.push(['detachWorker',...a]);return {id:'w'};},
+    createTask:async(...a)=>{calls.push(['createTask',...a]);return {id:'t'};},listTasks:(...a)=>{calls.push(['listTasks',...a]);return [{id:'t'}];},getTask:(...a)=>{calls.push(['getTask',...a]);return {task:{id:'t',status:taskStatus}};},updateTask:async(...a)=>{calls.push(['updateTask',...a]);return {id:'t'};},bindWorker:async(...a)=>{calls.push(['bindWorker',...a]);return {id:'w'};},detachWorker:async(...a)=>{calls.push(['detachWorker',...a]);return {id:'w'};},
     acquireLease:async(...a)=>{calls.push(['acquireLease',...a]);return {id:'l'};},heartbeatLease:async(...a)=>{calls.push(['heartbeatLease',...a]);return {id:'l'};},releaseLease:async(...a)=>{calls.push(['releaseLease',...a]);return {id:'l'};},acquireBestWorker:async(...a)=>{calls.push(['acquireBestWorker',...a]);return {worker:{id:'w'},lease:{id:'l'}};},
     taskSend:async(...a)=>{calls.push(['taskSend',...a]);return {ok:true};},taskQueueSend:async(...a)=>{calls.push(['taskQueueSend',...a]);return {ok:true};},taskWait:async(...a)=>{calls.push(['taskWait',...a]);return {ok:true};},checkpoint:async(...a)=>{calls.push(['checkpoint',...a]);return {checkpoint:{id:'c'}};},listCheckpoints:(...a)=>{calls.push(['listCheckpoints',...a]);return [];},listArtifacts:(...a)=>{calls.push(['listArtifacts',...a]);return [];},recoveryPlan:(...a)=>{calls.push(['recoveryPlan',...a]);return {recommendations:[]};}
   };return service;
@@ -29,6 +29,15 @@ test('task send and queue commands delegate without changing lease identity',asy
   const service=fakeService(),route=createTaskCommandRouter(service),params={taskId:'t',workerId:'w',leaseId:'l',ownerId:'a',text:'go'};
   await route('taskSend',params,{source:'agent'});assert.deepEqual(service.calls.at(-1),['taskSend',params]);
   await route('taskQueueSend',params,{source:'agent'});assert.deepEqual(service.calls.at(-1),['taskQueueSend',params]);
+});
+
+test('task work commands reject non-active tasks before delegation',async()=>{
+  for(const action of ['taskAcquireBestWorker','taskSend','taskQueueSend']){
+    const service=fakeService('PAUSED'),route=createTaskCommandRouter(service),before=service.calls.length;
+    await assert.rejects(()=>route(action,{taskId:'t',workerId:'w'}),/TASK_NOT_ACTIVE/);
+    assert.equal(service.calls.filter(([name])=>['acquireBestWorker','taskSend','taskQueueSend'].includes(name)).length,0);
+    assert.ok(service.calls.length>=before);
+  }
 });
 
 test('recovery command injects policy supplied by runtime',async()=>{
