@@ -1,5 +1,5 @@
 import { evaluateQueuedActions, normalizeQueuedAction } from '../core/action-queue.js';
-import { automationDueAt, evaluateAutomationRules, nextRetryDelay } from '../core/automation.js';
+import { automationDeliveryMode, automationDueAt, evaluateAutomationRules, nextRetryDelay } from '../core/automation.js';
 import { mayRetrySession } from '../core/state-machine.js';
 import { createSingleFlightGuard } from '../core/single-flight.js';
 import { appendTimeline } from './context-vault.js';
@@ -129,12 +129,17 @@ async function executeAutomation(ruleId,tabId,payload={}) {
   if(!runtime.settings.automationsEnabled||runtime.settings.automationPaused)return;
   const rule=runtime.automationRules.find(x=>x.id===ruleId);if(!rule?.enabled)return;
   if(rule.trigger==='time'&&Number(payload.runAt)!==Number(rule.runAt))return;
-  const action=rule.trigger==='time'?rule.action:(payload.action||rule.action);
-  trace(tabId,{stage:'AUTOMATION_TRIGGERED',action:action?.type||'automation',source:'automation',ruleId,state:sessions.get(tabId)?.stateInfo?.state});
+  const action=rule.trigger==='time'?rule.action:(payload.action||rule.action),delivery=automationDeliveryMode(rule);
+  trace(tabId,{stage:'AUTOMATION_TRIGGERED',action:action?.type||'automation',source:'automation',ruleId,state:sessions.get(tabId)?.stateInfo?.state,detail:delivery});
   try{
-    if(action.type==='send')await doSend(tabId,action.text,{source:'automation'});else if(action.type==='retry')await doRetryNow(tabId);else if(action.type==='continueNewChat')await continueNewChat(tabId,action.continuation);
+    if(action.type==='send'&&delivery==='safe_queue'){
+      await queueSend(tabId,action.text,{source:'automation',handoffOnLimit:true});
+      trace(tabId,{stage:'AUTOMATION_QUEUED',action:'send',source:'automation',ruleId,state:sessions.get(tabId)?.stateInfo?.state});
+    }else if(action.type==='send')await doSend(tabId,action.text,{source:'automation'});
+    else if(action.type==='retry')await doRetryNow(tabId);
+    else if(action.type==='continueNewChat')await continueNewChat(tabId,action.continuation);
     rule.runCount=Number(rule.runCount||0)+1;rule.lastRunAt=Date.now();await chrome.storage.local.set({automationRules:runtime.automationRules});
-    trace(tabId,{stage:'AUTOMATION_EXECUTED',action:action?.type||'automation',source:'automation',ruleId,state:sessions.get(tabId)?.stateInfo?.state});
+    trace(tabId,{stage:'AUTOMATION_EXECUTED',action:action?.type||'automation',source:'automation',ruleId,state:sessions.get(tabId)?.stateInfo?.state,detail:delivery});
   }catch(error){trace(tabId,{stage:'AUTOMATION_FAILED',action:action?.type||'automation',source:'automation',ruleId,error:safeError(error),state:sessions.get(tabId)?.stateInfo?.state});throw error;}
 }
 
