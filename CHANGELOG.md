@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased — Task Orchestrator Core
+
+### Multi-ChatGPT task runtime
+- Thêm `TaskRecord` và `WorkerBinding` để gom nhiều tab/conversation ChatGPT vào cùng một công việc.
+- Thêm worker lease độc quyền với TTL 5 giây–10 phút, heartbeat, release idempotent và explicit human takeover.
+- Agent không thể takeover lease hợp lệ của agent khác; action guard có error code ổn định cho conflict/expired/revoked/detached.
+- Thêm deterministic worker selection theo session state, health, queue depth, conversation continuity và lease ownership.
+- Worker `DEEP_THINKING`, `STREAMING`, `TOOL_RUNNING` và `DOM_DRIFT` bị loại khỏi send selection mặc định.
+
+### Resumability / recovery
+- Thêm append-only checkpoint graph với `headCheckpointId`, context reference, handoff metadata và artifact references.
+- Thêm recovery recommendation `WAIT`, `RETRY`, `HANDOFF`, `REPLACE`, `HUMAN_REVIEW`, `NONE`; core không tự click DOM.
+- Conversation limit chỉ được đề xuất handoff khi có checkpoint/context có thể tiếp tục.
+
+### Artifact provenance / persistence
+- Thêm task-level artifact provenance dedupe theo `(workerId, sessionArtifactId)` và giữ nguồn phát hiện ban đầu khi download state cập nhật.
+- Thêm pure snapshot codec để round-trip task graph, kể cả expired/revoked leases.
+- Thêm IndexedDB `nolane-sentinel-orchestrator-v1` với stores `tasks`, `workers`, `leases`, `checkpoints`, `artifacts`.
+- Thêm public facade `src/orchestrator/index.js`; MCP/UI wave sau không phụ thuộc internal scoring constants.
+- Verifier coi Task Orchestrator modules/DB/contracts là release requirement.
+
 ## 0.2.1 — 2026-08-22
 
 ### Scheduler / recovery hardening
