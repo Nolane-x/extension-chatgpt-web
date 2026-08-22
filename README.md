@@ -1,285 +1,428 @@
-# Nolane Sentinel — ChatGPT Web
+# Nolane Sentinel — ChatGPT Web Supervisory Runtime
 
-**Nolane Sentinel** là Chrome Extension biến các tab ChatGPT Web đang mở thành một **hệ thống làm việc có thể quan sát, điều khiển, phục hồi và kết nối với AI agent cục bộ**.
+**Nolane Sentinel** là Chrome Extension biến các tab ChatGPT Web đang mở thành một **hệ thống có thể quan sát sâu, điều khiển, phục hồi, điều phối nhiều worker và kết nối với AI agent cục bộ**.
 
-Sentinel không chỉ hỏi “nút Stop còn hay mất”. Nó hợp nhất DOM, trạng thái hiển thị, CDP/Network, thời gian ổn định, artifact/file, Context Vault và watchdog để hiểu một phiên ChatGPT đang thực sự ở đâu trong vòng đời công việc.
+Nó không chỉ hỏi “nút Stop còn hay mất”. Sentinel hợp nhất DOM, trạng thái hiển thị công khai, CDP/Network, thời gian ổn định, tool activity, artifact/file, Context Vault, watchdog, task graph và lease authority để hiểu ChatGPT đang thực sự ở đâu trong vòng đời công việc.
 
-> **Phiên bản:** `0.2.0`  
-> **Ngôn ngữ mặc định:** Tiếng Việt  
+> **Phiên bản:** `0.3.0`  
+> **Ngôn ngữ mặc định:** Tiếng Việt; có English mode  
 > **Nền tảng:** Chrome 120+ / Manifest V3  
-> **Mặc định an toàn:** Automation tắt, AI Bridge tắt, quyền agent chỉ `observe` + `open`.
+> **MCP:** `2026-07-28`  
+> **Mặc định an toàn:** Automation tắt, AI Bridge tắt, agent chỉ có `observe` + `open`.
 
 ---
 
-## Lợi ích thật sự
+## Vì sao Nolane Sentinel có ích thật sự?
 
 ### 1. Biết ChatGPT đang làm gì — không đoán bằng cảm giác
 
-Một phản hồi dài có thể đứng hình hàng chục giây nhưng ChatGPT vẫn đang suy nghĩ, nghiên cứu, dùng tool hoặc chờ dữ liệu. Sentinel phân biệt các state như:
+Một phản hồi dài có thể gần như đứng hình nhưng ChatGPT vẫn đang suy nghĩ sâu, nghiên cứu, dùng tool hoặc chờ dữ liệu. Sentinel phân biệt các state như:
 
-`THINKING` · `DEEP_THINKING` · `STREAMING` · `TOOL_RUNNING` · `WAITING_USER` · `COMPLETING` · `COMPLETED` · `CONNECTION_LOST` · `RATE_LIMITED` · `CONVERSATION_LIMIT` · `STALLED` · `DOM_DRIFT`.
+`IDLE` · `THINKING` · `DEEP_THINKING` · `STREAMING` · `TOOL_RUNNING` · `WAITING_USER` · `COMPLETING` · `COMPLETED` · `CONNECTION_LOST` · `RATE_LIMITED` · `CONVERSATION_LIMIT` · `STALLED` · `FAILED` · `DOM_DRIFT`.
 
-Điều này giúp tránh lỗi rất đắt: **retry đúng lúc ChatGPT vẫn đang làm việc**, khiến một tác vụ dài bị nhân đôi hoặc mất tiến trình.
+Điểm quan trọng: **`DEEP_THINKING` không được coi là treo và không được retry**. Điều này tránh lỗi rất đắt: gửi lại prompt đúng lúc ChatGPT vẫn đang thực hiện một công việc dài.
 
 ### 2. Mất kết nối không còn đồng nghĩa với phải ngồi canh
 
-Khi giao diện báo lỗi mạng hoặc turn thật sự stall, Sentinel có thể:
+Recovery Engine có thể:
 
-- ghi nhận chính xác thời điểm lỗi;
+- nhận biết lỗi mạng/stall thật;
 - chờ theo bounded exponential backoff;
-- kiểm tra lại liveness trước khi retry;
-- tuyệt đối khóa retry nếu Stop/status/network vẫn chứng minh turn còn sống;
-- giữ lịch recovery qua `chrome.storage` + `chrome.alarms`, kể cả service worker MV3 ngủ rồi thức lại.
+- kiểm tra lại liveness trước retry;
+- khóa retry nếu generation/status/tool evidence cho thấy turn vẫn sống;
+- giữ lịch recovery bằng `chrome.storage` + `chrome.alarms` qua MV3 service-worker suspend;
+- dùng single-flight guard để timer RAM và alarm không thực thi cùng action hai lần.
 
-### 3. Xếp lệnh tiếp theo mà không chen ngang turn đang chạy
+### 3. Xếp việc tiếp theo mà không chen ngang turn đang chạy
 
-**Safe Prompt Queue** cho phép người dùng hoặc AI agent xếp trước prompt tiếp theo. Sentinel chỉ gửi khi state an toàn (`IDLE`/`COMPLETED`).
-
-Ví dụ: ChatGPT đang Deep Research, bạn vẫn có thể xếp:
+**Safe Prompt Queue** cho phép người hoặc agent xếp prompt từ trước. Sentinel chỉ gửi khi phiên thực sự an toàn.
 
 ```text
-Sau khi xong, kiểm tra toàn bộ test rồi tạo release package.
+ChatGPT đang Deep Research
+        ↓
+Queue: “Sau khi xong, chạy test và tạo release.”
+        ↓
+Sentinel chờ state an toàn
+        ↓
+Re-observe → guard → send
 ```
 
-Prompt nằm trong queue bền vững, không mất nếu extension service worker bị suspend.
+Queue bền vững qua service-worker restart và có thể đi qua conversation handoff.
 
-### 4. Cuộc trò chuyện chạm giới hạn vẫn tiếp tục được
+### 4. Conversation chạm giới hạn vẫn có thể tiếp tục có kiểm soát
 
-Khi Sentinel nhận ra `CONVERSATION_LIMIT`, tính năng handoff có thể:
+Khi xuất hiện `CONVERSATION_LIMIT`, Sentinel có thể:
 
-1. lấy mục tiêu gần nhất;
-2. lấy các turn nhìn thấy gần nhất;
-3. lấy artifact/file/GitHub references;
-4. giới hạn kích thước deterministic;
-5. mở ChatGPT mới;
-6. chờ composer thật sự sẵn sàng;
-7. gửi Context Handoff + câu lệnh tiếp tục.
+1. lấy context nhìn thấy gần nhất;
+2. giữ mục tiêu/các turn gần đây/artifact references;
+3. giới hạn payload deterministic;
+4. mở ChatGPT mới;
+5. chờ composer sẵn sàng;
+6. gửi Context Handoff;
+7. tiếp tục prompt đang chờ.
 
-Nếu có Safe Queue đang chờ, prompt đó có thể đi cùng handoff sang chat mới.
+Sentinel không bypass usage/context limits. Nó chỉ tạo một cuộc trò chuyện mới và bàn giao context công khai mà người dùng nhìn thấy.
 
-### 5. File ChatGPT tạo ra trở thành workflow thật
+### 5. File ChatGPT tạo ra trở thành artifact dùng được
 
-Sentinel phát hiện artifact bằng nhiều nguồn bằng chứng:
+Artifact Intelligence hợp nhất nhiều nguồn evidence:
 
 - file card/link trong DOM;
 - `download` attribute;
-- extension filename;
-- MIME/binary response;
+- filename/extension;
+- MIME;
 - `Content-Disposition` từ CDP Network;
 - Chrome Download events;
-- GitHub repo/commit/PR URL được phân loại riêng.
+- GitHub repo/commit/PR/tree/blob URL.
 
-Hỗ trợ ZIP/7z/RAR/TAR, PDF/Office, CSV, JSON/YAML/Markdown, source code, ảnh/media và nhiều binary phổ biến.
+Hỗ trợ các nhóm phổ biến như ZIP/7z/RAR/TAR, PDF/Office/CSV, JSON/YAML/Markdown, source code, ảnh/media và binary.
 
-Bạn hoặc AI agent có thể:
+Người dùng hoặc agent có thể:
 
 - tải một artifact;
-- **tải tất cả artifact** của phiên;
-- theo dõi download state;
-- lấy đường dẫn local do Chrome cung cấp qua `chatgpt_get_download`.
+- tải hàng loạt artifact của phiên;
+- xem trạng thái download;
+- lấy đường dẫn local từ Chrome DownloadItem;
+- xem artifact thuộc worker/task nào trong **Task Artifact Inbox**.
 
-OpenAI hiện lưu file đã upload/tạo trong ChatGPT Library; Sentinel không thay thế Library, mà làm lớp quan sát/điều khiển ngay trên workflow chat đang chạy.
+### 6. Nhiều tab ChatGPT trở thành một worker pool
 
-### 6. Điều khiển nhiều ChatGPT từ một Observatory Console
-
-Chrome Side Panel hiển thị đồng thời:
-
-- state + confidence;
-- thời gian từ lúc bắt đầu turn;
-- phase rail;
-- evidence gần nhất;
-- health (`healthy`, `degraded`, `critical`);
-- recovery countdown;
-- queued prompts;
-- artifact;
-- Deep Observe status;
-- Session Microscope timeline.
-
-### 7. UI drift được coi là lỗi cấu trúc, không phải “ChatGPT bị treo”
-
-ChatGPT Web thay đổi UI thường xuyên. Sentinel có **DOM Drift Guard**:
-
-- response DOM từng có rồi biến mất;
-- completion surface có nhưng answer rỗng;
-- generation dừng, answer có text nhưng completion control không xuất hiện trong grace period.
-
-Những trường hợp này đi vào `DOM_DRIFT`, chụp bounded diagnostics và **không auto-retry mù**.
-
-### 8. AI agent có một cổng mạnh nhưng vẫn bị giới hạn quyền
-
-Native companion tùy chọn cung cấp:
+Từ v0.3.0, **Task Orchestrator** gom nhiều ChatGPT vào cùng một công việc:
 
 ```text
-AI Agent
-   │
-   ├─ JSON-RPC / HTTP
-   ├─ Event stream
-   └─ MCP 2026-07-28
-          │
-   Nolane Native Bridge
-          │ Native Messaging
-   Chrome Extension
-          │
-   ChatGPT Web tabs
+Task: Release v0.3
+│
+├─ Worker A — nghiên cứu / DEEP_THINKING
+├─ Worker B — coding / COMPLETED
+├─ Worker C — test / TOOL_RUNNING
+│
+├─ Checkpoint graph
+├─ Artifact Inbox
+└─ Recovery plan
 ```
 
-Agent có thể list/observe/wait/diagnose/open/compose/send/queue/stop/retry/handoff/download/context/automation tùy đúng capability scope được người dùng bật.
+Thay vì agent phải tự nhớ từng `tabId`, nó có thể làm việc ở cấp **task**.
 
-Không có “AI god mode”. `observe`, `send`, `download`, `context_delete`… là các quyền độc lập.
+### 7. Lease ngăn hai agent hoặc người+agent giẫm lệnh nhau
+
+Mỗi worker có thể được giữ bởi một **lease độc quyền**.
+
+Lease có:
+
+- owner ID;
+- owner type (`agent` / `human`);
+- TTL 5 giây–10 phút;
+- heartbeat;
+- expiry/revoke;
+- explicit release.
+
+Một agent không thể tự takeover lease hợp lệ của agent khác. Human takeover chỉ là thao tác explicit trong Mission Control và **không xuất hiện trong MCP**.
+
+`task_send` / `task_queue_send` cần đồng thời:
+
+1. capability scope phù hợp;
+2. task đang `ACTIVE`;
+3. worker không detached;
+4. lease ID đúng;
+5. owner ID đúng;
+6. lease chưa hết hạn/revoke.
+
+### 8. Task có thể resume thay vì chết cùng một tab
+
+Task Orchestrator lưu checkpoint append-only:
+
+- `PROGRESS`
+- `HANDOFF`
+- `DECISION`
+- `FAILURE`
+
+Checkpoint có thể tham chiếu worker, context và artifact. Nếu một tab bị đóng, worker chuyển `detached`, nhưng task/checkpoint/artifact history vẫn còn.
+
+### 9. Recovery Planner đưa quyết định cấp task
+
+Planner có thể đề xuất:
+
+`WAIT` · `RETRY` · `HANDOFF` · `REPLACE` · `HUMAN_REVIEW` · `NONE`.
+
+Planner **không tự click DOM**. Nó tách “quyết định nên làm gì” khỏi “thực thi action”, nên dễ audit và fail-closed hơn.
+
+### 10. AI agent có cổng rất mạnh nhưng không có “god mode”
+
+Native Bridge tùy chọn cung cấp:
+
+```text
+Local AI Agent / CLI
+        │
+        ├─ JSON-RPC / HTTP
+        ├─ Event stream
+        └─ MCP 2026-07-28
+               │
+        Nolane Native Bridge
+               │ Native Messaging
+        Chrome Extension
+               │
+        ChatGPT Web tabs
+```
+
+Extension vẫn là authority cuối. Bridge không tự thao tác ChatGPT nếu extension không cho phép.
 
 ---
 
-## Kiến trúc quan sát 4 tầng
+# NUI Mission Control
 
-### Tầng 1 — Tab Sentinel
+Side Panel chính có hai cấp quan sát:
 
-Theo dõi mọi `https://chatgpt.com/*` tab trong Chrome profile hiện tại: tạo tab, đóng tab, navigation, conversation ID, restore.
+## Observatory Console
 
-### Tầng 2 — Semantic DOM Observer
+Dành cho toàn bộ ChatGPT tabs:
 
-Theo dõi composer, user/assistant turn, status/reasoning công khai, tool card, approval dialog, error, Stop/completion control, artifact và Deep Research/progress rows.
+- state + confidence;
+- thời gian turn/phase;
+- evidence gần nhất;
+- session health;
+- Deep Observe status;
+- recovery countdown;
+- Safe Queue count;
+- artifact count;
+- DOM drift status.
 
-### Tầng 3 — CDP Deep Observer
+## Session Microscope
 
-Khi bật **Deep Observe**, Sentinel dùng `chrome.debugger` làm CDP transport để lấy:
+Dành cho một phiên cụ thể:
+
+- state/evidence sâu;
+- Context Vault timeline;
+- diagnostics;
+- Stop;
+- Retry có backoff;
+- conversation handoff;
+- artifact/download controls.
+
+## Mission Control — Công việc
+
+Dành cho task nhiều worker:
+
+- tạo task + mục tiêu;
+- bind/detach ChatGPT worker;
+- worker role + state;
+- lease owner + TTL;
+- **Acquire Best Worker**;
+- Acquire / Release lease;
+- explicit **Tiếp quản** lease agent;
+- send / Safe Queue bằng human lease;
+- Recovery Plan;
+- checkpoint history;
+- task-level Artifact Inbox;
+- pause/activate/complete task.
+
+Task không `ACTIVE` sẽ không hiện control giao việc mới; backend cũng fail-closed với `TASK_NOT_ACTIVE`.
+
+Mission Control sử dụng cùng visual system với Observatory thay vì tạo một “AI neon dashboard” riêng. Hierarchy chính là: **Task → Worker → Authority → Action → Evidence**.
+
+---
+
+# Kiến trúc quan sát 4 tầng
+
+## Tầng 1 — Tab Sentinel
+
+Theo dõi tất cả `https://chatgpt.com/*` tab trong Chrome profile hiện tại:
+
+- tạo/đóng tab;
+- navigation;
+- conversation ID;
+- session restore;
+- watchdog discovery.
+
+## Tầng 2 — Semantic DOM Observer
+
+Theo dõi các tín hiệu người dùng có thể nhìn thấy:
+
+- composer;
+- user/assistant turns;
+- Stop/completion controls;
+- public thinking/research status;
+- tool activity;
+- approval/waiting surface;
+- errors/limits;
+- artifact/file controls.
+
+Sentinel không cố trích hidden chain-of-thought.
+
+## Tầng 3 — CDP Deep Observer
+
+Khi bật **Deep Observe**, Sentinel dùng `chrome.debugger` làm CDP transport cho:
 
 - `Network` activity;
-- `Runtime`/`Page` lifecycle;
-- `Performance` metrics;
-- bounded diagnostics;
-- trusted `Input.insertText`/keyboard/mouse dispatch cho deep control.
+- Runtime/Page lifecycle;
+- Performance metrics;
+- bounded page diagnostics;
+- trusted `Input.insertText`/keyboard/mouse dispatch.
 
-Chrome 120+ là baseline release: debugger session có thể giữ MV3 service worker sống, đồng thời alarm granularity 30 giây cho watchdog hoạt động đúng thiết kế.
+`debugger` là permission mạnh và Chrome sẽ hiển thị cảnh báo. Sentinel chỉ attach ChatGPT tabs.
 
-### Tầng 4 — Evidence Fusion
+## Tầng 4 — Evidence Fusion
 
-Không signal đơn lẻ nào được coi là sự thật tuyệt đối. State machine hợp nhất:
+Không một selector/tín hiệu đơn lẻ nào được xem là sự thật tuyệt đối. State engine hợp nhất:
 
-- Stop/generation control;
-- answer DOM/text mutation;
-- public status/tool progress;
+- generation/Stop control;
+- response DOM;
+- assistant/status mutations;
+- public tool/research progress;
 - CDP network pulse;
 - completion action;
-- timer/grace window;
+- grace/stability window;
 - error/limit surface.
 
 ---
 
-## Deep Control
-
-Sentinel có thể thao tác trực tiếp ChatGPT Web:
-
-- mở/focus tab;
-- focus composer;
-- điền prompt bằng CDP `Input.insertText`;
-- chia prompt dài theo chunk mà không cắt surrogate pair Unicode;
-- gửi;
-- stop;
-- retry có state guard;
-- xếp Safe Queue;
-- mở chat mới + handoff context;
-- click/download artifact.
-
-Mọi action quan trọng đều có post-observation và timeline/audit trail.
-
----
-
-## State machine
+# State machine
 
 | State | Ý nghĩa | Auto retry |
 | --- | --- | --- |
 | `IDLE` | Sẵn sàng nhận prompt | Không cần |
-| `SUBMITTED` / `QUEUED` | Đã gửi, chờ turn bắt đầu | Không |
+| `SUBMITTED` / `QUEUED` | Prompt đã gửi/chờ generation | Không |
 | `THINKING` | Có liveness/progress | **Không** |
-| `DEEP_THINKING` | Im lặng lâu nhưng generation vẫn sống | **Không** |
-| `STREAMING` | Answer đang đổi/tăng | **Không** |
-| `TOOL_RUNNING` | Tool/research activity đang chạy | **Không** |
-| `WAITING_USER` | Chờ approval/input | Không |
-| `COMPLETING` | Đang chờ completion ổn định | Không |
-| `COMPLETED` | Đã qua settle gate | Không |
-| `CONNECTION_LOST` | Lỗi kết nối có evidence | Có, nếu guard cho phép |
-| `STALLED` | Hết liveness quá threshold | Có, nếu guard cho phép |
-| `FAILED` | Turn lỗi terminal | Có, nếu guard cho phép |
-| `RATE_LIMITED` | Limit sử dụng/tốc độ | Không retry mù |
-| `CONVERSATION_LIMIT` | Chat/context đạt giới hạn | Handoff sang chat mới |
-| `DOM_DRIFT` | UI/selector có dấu hiệu thay đổi | **Không retry mù** |
+| `DEEP_THINKING` | Im lặng lâu nhưng generation còn sống | **Không** |
+| `STREAMING` | Answer đang thay đổi | **Không** |
+| `TOOL_RUNNING` | Tool/research đang chạy | **Không** |
+| `WAITING_USER` | Cần input/approval | Không |
+| `COMPLETING` | Chờ completion settle | Không |
+| `COMPLETED` | Đã qua stability gate | Không |
+| `CONNECTION_LOST` | Có evidence mất kết nối | Có guard |
+| `STALLED` | Hết liveness quá threshold | Có guard |
+| `FAILED` | Turn terminal error | Có guard |
+| `RATE_LIMITED` | Usage/rate surface | Không retry mù |
+| `CONVERSATION_LIMIT` | Chat/context chạm giới hạn | Handoff nếu bật |
+| `DOM_DRIFT` | UI structure có dấu hiệu thay đổi | **Không retry mù** |
 
 ---
 
-## Safe Prompt Queue
+# DOM Drift Guard
 
-Queue theo mô hình:
+ChatGPT Web thay đổi UI thường xuyên. Sentinel phân biệt “UI đổi” với “ChatGPT bị treo”. Ví dụ:
+
+- response DOM từng tồn tại rồi biến mất;
+- response surface tồn tại nhưng hoàn tất rỗng bất thường;
+- generation dừng + answer có text nhưng completion control không xuất hiện trong grace period.
+
+Những trường hợp này vào `DOM_DRIFT`, có bounded diagnostics và không silent-fallback sang click/gửi mù.
+
+---
+
+# Task Orchestrator
+
+## Domain
 
 ```text
-Queue → persist → observe state → guard → durable alarm → re-observe → send/handoff
+TaskRecord
+├─ id / title / goal / status
+├─ workerIds[]
+└─ headCheckpointId
+
+WorkerBinding
+├─ taskId
+├─ tabId / conversationId
+├─ role
+├─ lastKnownState
+├─ leaseId
+└─ detachedAt
+
+LeaseRecord
+├─ workerId
+├─ ownerId / ownerType
+├─ issuedAt / heartbeatAt / expiresAt
+└─ revokedAt / reason
+
+Checkpoint
+├─ parentId
+├─ kind / summary
+├─ workerId / contextRef
+└─ artifactIds[]
 ```
 
-Mỗi queue item có ID, target tab, thời điểm tạo, thời hạn, status, nguồn và policy `handoffOnLimit`.
+## Persistence
 
-Agent tools:
+IndexedDB database:
 
-- `chatgpt_queue_send`
-- `chatgpt_list_queue`
-- `chatgpt_cancel_queued`
+`nolane-sentinel-orchestrator-v1`
+
+Stores:
+
+- `tasks`
+- `workers`
+- `leases`
+- `checkpoints`
+- `artifacts`
+
+Lõi task graph không phụ thuộc trực tiếp vào Chrome APIs; Chrome adapter chỉ làm I/O/session/action wiring.
+
+## Worker selection
+
+Worker scoring xem xét:
+
+- state;
+- health;
+- queue depth;
+- lease conflict;
+- conversation continuity;
+- intent.
+
+Các trạng thái bận/rủi ro bị loại khỏi send selection mặc định.
 
 ---
 
-## Watchdog
+# Artifact Intelligence
 
-Watchdog mặc định bật và chạy mỗi 30 giây:
-
-- query lại ChatGPT tabs;
-- reattach Deep Observer nếu cần;
-- có cooldown để không spam attach khi DevTools/Chrome đang giữ debugger;
-- refresh snapshot;
-- kích hoạt DOM drift diagnostic khi cần;
-- dọn Context Vault cũ theo retention.
-
----
-
-## Artifact Intelligence
-
-Sentinel **không** coi một dòng text “file.zip” là file thật nếu không có evidence đủ mạnh.
+Sentinel không coi một dòng text `file.zip` là file thật nếu không có evidence đủ mạnh.
 
 Artifact families:
 
-- `archive` — zip/7z/rar/tar/gz…
-- `document` — pdf/docx/xlsx/pptx/csv…
-- `source` — js/ts/py/go/rust/json/yaml/md…
-- `media` — image/audio/video…
+- `archive`
+- `document`
+- `source`
+- `media`
 - `binary`
-- `github` — repo/commit/pull/tree/blob riêng biệt.
+- `github`
 
-Bulk workflow: `chatgpt_download_all_artifacts`.
+Task-level artifact provenance giữ quan hệ:
+
+```text
+Task
+  → Worker
+    → Tab / Conversation
+      → Session Artifact
+        → Download state
+```
 
 ---
 
-## Context Vault
+# Context Vault
 
-IndexedDB lưu local:
+Context Vault lưu local:
 
-- session summary;
-- normalized snapshot;
+- normalized session snapshot;
 - state timeline;
 - action/recovery/queue/download events;
 - artifact references;
 - agent action audit.
 
-Chế độ lưu:
+Retention modes:
 
 - **Full visible context**;
 - **Telemetry only**;
 - **Không lưu**.
 
-Retention: 1/7/30/90 ngày.
+Retention days: 1 / 7 / 30 / 90.
 
-Sentinel không cố lấy hidden chain-of-thought. Chỉ nội dung/status người dùng nhìn thấy trên trang mới được đưa vào context.
+Nội dung hidden chain-of-thought không được thu thập.
 
 ---
 
-## Agent API / MCP
+# AI Agent / MCP
 
-Native bridge bind cứng `127.0.0.1:17892` và yêu cầu bearer token.
+Native Bridge bind cứng:
+
+`127.0.0.1:17892`
 
 Endpoints:
 
@@ -288,9 +431,11 @@ Endpoints:
 - `GET /events`
 - `POST /mcp`
 
-MCP pin protocol `2026-07-28`.
+HTTP/MCP yêu cầu bearer token local.
 
-### Tool nổi bật
+## 39 MCP tools
+
+### Tab/session tools
 
 - `chatgpt_list_tabs`
 - `chatgpt_observe`
@@ -311,43 +456,74 @@ MCP pin protocol `2026-07-28`.
 - `chatgpt_get_download`
 - `chatgpt_get_context`
 - `chatgpt_delete_context`
-- `automation_*`
 
-Chi tiết: [`docs/protocol.md`](docs/protocol.md).
+### Automation tools
+
+- `automation_list`
+- `automation_set_enabled`
+- `automation_save`
+- `automation_delete`
+
+### Task tools
+
+- `task_create`
+- `task_list`
+- `task_get`
+- `task_update`
+- `task_bind_worker`
+- `task_detach_worker`
+- `task_acquire_lease`
+- `task_heartbeat_lease`
+- `task_release_lease`
+- `task_acquire_best_worker`
+- `task_send`
+- `task_queue_send`
+- `task_wait`
+- `task_checkpoint`
+- `task_list_artifacts`
+- `task_recovery_plan`
+
+Chi tiết wire contract: [`docs/protocol.md`](docs/protocol.md).
 
 ---
 
-## Capability scopes
+# Capability scopes
 
-| Scope | Quyền |
+| Scope | Quyền chính |
 | --- | --- |
 | `observe` | list/observe/wait/diagnose/focus/list queue/list artifact |
-| `open` | mở ChatGPT mới |
-| `compose` | điền composer, chưa gửi |
-| `send` | send/queue/handoff |
+| `open` | mở ChatGPT tab |
+| `compose` | điền composer chưa gửi |
+| `send` | send/queue/conversation handoff; task send vẫn cần lease |
 | `stop` | dừng turn |
-| `retry` | retry có guard |
-| `download` | tải một/tất cả artifact, đọc DownloadItem |
+| `retry` | retry có guard/backoff |
+| `download` | tải artifact/đọc DownloadItem |
 | `context_read` | đọc Context Vault |
 | `context_delete` | xóa Context Vault |
 | `automation_write` | tạo/sửa/bật/tắt/xóa automation |
+| `task_read` | đọc task/worker/checkpoint/artifact/recovery |
+| `task_write` | tạo/cập nhật task, bind/detach worker, checkpoint |
+| `task_lease` | acquire/heartbeat/release/acquire-best worker |
 
 Mặc định chỉ `observe` + `open`.
 
+Cổng AI render trực tiếp canonical `AGENT_SCOPES`, nên UI permission không có một danh sách scope viết tay riêng dễ bị lệch protocol.
+
 ---
 
-## Cài đặt extension
+# Cài đặt extension
 
-### Từ release ZIP
+## Từ release ZIP
 
-1. Giải nén `nolane-sentinel-v0.2.0-extension.zip`.
+1. Tải và giải nén `nolane-sentinel-v0.3.0-extension.zip`.
 2. Mở `chrome://extensions`.
 3. Bật **Developer mode**.
 4. Chọn **Load unpacked**.
-5. Trỏ tới thư mục đã giải nén.
-6. Mở `chatgpt.com` và bấm icon Sentinel để mở Side Panel.
+5. Chọn thư mục vừa giải nén.
+6. Mở `chatgpt.com`.
+7. Bấm icon Nolane Sentinel để mở Side Panel.
 
-### Từ source
+## Từ source
 
 ```bash
 git clone https://github.com/Nolane-x/extension-chatgpt-web.git
@@ -356,45 +532,58 @@ npm test
 npm run verify
 ```
 
-Sau đó Load unpacked trực tiếp thư mục repo.
-
-> Permission `debugger` là quyền mạnh. Chrome sẽ hiện cảnh báo. Sentinel chỉ attach tab `chatgpt.com` và có thể tắt Deep Observe bất kỳ lúc nào.
+Sau đó Load unpacked thư mục repo.
 
 ---
 
-## Native Bridge
+# Native Bridge — tùy chọn
 
-Native Bridge là **tùy chọn**. Extension vẫn hoạt động nếu không cài bridge.
+Extension vẫn chạy nếu không cài Native Bridge. Bridge chỉ cần khi một agent/CLI ngoài trình duyệt muốn quan sát/điều khiển Sentinel.
 
-1. Cài Node.js 20+.
-2. Giải nén `nolane-sentinel-v0.2.0-native-bridge.zip`.
-3. Mở `chrome://extensions`, copy **ID** của Nolane Sentinel.
-4. Cài host bằng đúng Extension ID đó:
+Yêu cầu Node.js 20+.
 
-**Windows**
+1. Giải nén `nolane-sentinel-v0.3.0-native-bridge.zip`.
+2. Mở `chrome://extensions` và copy Extension ID.
+3. Cài host bằng đúng ID đó.
+
+### Windows
 
 ```bat
 install_host.bat YOUR_EXTENSION_ID
 ```
 
-**macOS / Linux**
+### macOS / Linux
 
 ```bash
 ./install_host.sh YOUR_EXTENSION_ID
 ```
 
-5. Bật **Cổng AI → Native Bridge** trong Sentinel.
-6. Chỉ bật các capability scope agent thật sự cần.
+4. Bật **Cổng AI → Native Bridge**.
+5. Chỉ bật những capability scope agent cần.
 
-Installer dùng user-level registration; `allowed_origins` được khóa vào đúng Extension ID, không wildcard. Có `uninstall_host.bat` / `uninstall_host.sh` để gỡ sạch registration.
+Installer đăng ký user-level và khóa `allowed_origins` vào đúng Extension ID, không wildcard.
+
+Gỡ cài đặt:
+
+```text
+uninstall_host.bat
+uninstall_host.sh
+```
 
 Xem [`native-host/README.md`](native-host/README.md).
 
 ---
 
-## Phát triển / kiểm tra / đóng gói
+# Phím tắt
 
-Yêu cầu Node.js 20+. Packager ZIP deterministic được viết trong repo, không phụ thuộc binary `zip` bên ngoài.
+- `Alt+Shift+N` — mở ChatGPT mới.
+- `Alt+Shift+P` — pause/resume automation.
+
+---
+
+# Development / Verification
+
+Yêu cầu Node.js 20+.
 
 ```bash
 npm test
@@ -404,39 +593,91 @@ npm run package
 npm run release:check
 ```
 
-Release artifacts được tạo trong `dist/` và mirror versioned tại `release/v0.2.0/`, kèm `SHA256SUMS.txt`. Workflow `Release` có thể publish trực tiếp các artifact này khi tag/dispatch `v0.2.0`.
+Verifier kiểm:
+
+- Manifest V3 / Chrome 120+;
+- manifest/package/native-host version parity;
+- runtime file references;
+- JavaScript syntax;
+- relative import existence;
+- remote hosted JS/eval prohibition;
+- 39 MCP tools + task scopes;
+- Native Bridge shared task registry;
+- Task Orchestrator modules/contracts;
+- Mission Control modules/wiring;
+- `TASK_NOT_ACTIVE` fail-closed guard;
+- Node 20 native ZIP ESM contract;
+- deterministic ZIP builder.
+
+Packager tạo:
+
+```text
+dist/
+├─ nolane-sentinel-v0.3.0-extension.zip
+├─ nolane-sentinel-v0.3.0-native-bridge.zip
+├─ nolane-sentinel-v0.3.0-source.zip
+└─ SHA256SUMS.txt
+```
+
+và mirror vào `release/v0.3.0/` khi release workflow chạy.
+
+GitHub Verify workflow ghi `verification/latest.json` chỉ sau khi test + verify + package + checksum đều PASS.
+
+GitHub Release workflow sau publish còn chạy `gh release view` và ghi `verification/release-v0.3.0.published.json` để chứng minh Release object + asset metadata tồn tại thật.
 
 ---
 
-## Bảo mật & quyền riêng tư
+# Bảo mật & quyền riêng tư
 
-- Extension chỉ có host permission `https://chatgpt.com/*`.
-- Bridge chỉ bind loopback.
-- Bearer token local ngẫu nhiên.
-- Agent action bị kiểm tra scope tại extension — UI/native host không phải authority cuối.
+- Host permission chỉ `https://chatgpt.com/*`.
+- `debugger` không attach các website khác.
+- Native Bridge chỉ bind loopback.
+- HTTP/MCP yêu cầu bearer token ngẫu nhiên local.
+- Native Messaging manifest khóa đúng Extension ID.
+- Agent authority được kiểm tra tại extension.
+- Task authority có thêm lease guard.
+- Human takeover không xuất hiện trong MCP.
+- Automation/Recovery/Handoff/Bridge mặc định không tự bật.
 - Context local-first.
-- Automation/Recovery/Handoff/Bridge không tự bật.
-- DOM drift không auto-click mù.
-- Sentinel không bypass login, usage limit hay access control của ChatGPT.
-- Sentinel không execute file tải về.
+- `DOM_DRIFT` không auto-click mù.
+- Sentinel không bypass login/rate/usage/access control.
+- Sentinel không tự execute file tải về.
+- Diagnostics được giới hạn; không dump hidden reasoning.
 
 Xem [`SECURITY.md`](SECURITY.md).
 
 ---
 
-## Điều đã kiểm chứng và điều chưa được phép nói quá
+# Điều đã kiểm chứng và điều không được phép nói quá
 
-`npm test` kiểm tra state/evidence/queue/protocol/native bridge; `npm run verify` kiểm tra manifest, runtime references, syntax, locale, remote-code prohibition và protocol parity.
+CI/unit/static verification có thể chứng minh state logic, leases, queue, task graph, protocol parity, native bridge startup, packaging và UI contracts.
 
-**Live ChatGPT Web thay đổi theo account/model/UI rollout.** Repository chưa thể tuyên bố mọi selector đã E2E-pass trên mọi account nếu không có browser evidence từ phiên ChatGPT đăng nhập thật. Thiết kế vì vậy ưu tiên fail-closed, `DOM_DRIFT` và diagnostics thay vì silent fallback.
+Nhưng **ChatGPT Web thay đổi theo account/model/UI rollout**. Repo không tuyên bố mọi selector đã E2E-pass trên mọi tài khoản nếu không có browser evidence từ một phiên ChatGPT đăng nhập thật tương ứng.
+
+Vì vậy thiết kế ưu tiên:
+
+- fail-closed;
+- evidence fusion;
+- `DOM_DRIFT`;
+- explicit authority/lease;
+- bounded diagnostics;
+- không silent fallback sang click gần đúng.
 
 ---
 
-## Tài liệu nền tảng
+# Tài liệu trong repo
 
-- Chrome Extensions — `chrome.debugger`, `chrome.alarms`, service-worker lifecycle, `chrome.downloads`, Native Messaging, Side Panel.
-- OpenAI Help — File storage & Library; Deep Research.
-- MCP protocol `2026-07-28`.
-- `miuuyy/codex-chatgpt-web` — tham chiếu về browser-turn liveness, completion settling, prompt chunking và UI drift diagnostics.
+- [`docs/protocol.md`](docs/protocol.md) — Agent/MCP wire contract.
+- [`docs/task-orchestrator.md`](docs/task-orchestrator.md) — Task Orchestrator core.
+- [`docs/task-control-plane.md`](docs/task-control-plane.md) — Task Control Plane / authority.
+- [`SECURITY.md`](SECURITY.md) — security model.
+- [`CHANGELOG.md`](CHANGELOG.md) — lịch sử phiên bản.
+- [`RELEASE_NOTES_v0.3.0.md`](RELEASE_NOTES_v0.3.0.md) — release notes v0.3.0.
+
+---
+
+## Tóm tắt một câu
+
+**Nolane Sentinel biến nhiều ChatGPT Web tab từ những cửa sổ độc lập thành một runtime có state truth, recovery, artifact workflow, task graph, lease authority, Mission Control và cổng MCP cho AI agent — nhưng vẫn ưu tiên quyền kiểm soát của người dùng và fail-closed khi UI không còn chắc chắn.**
 
 Nolane Sentinel là phần mềm độc lập, không liên kết hay được OpenAI chứng thực.
