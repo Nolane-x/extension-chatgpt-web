@@ -1,6 +1,7 @@
 import { ui } from './model.js';
 import { overviewHtml,microscopeHtml } from './session-views.js';
-import { filesHtml,automationHtml,bridgeHtml,settingsHtml } from './admin-views.js';
+import { filesHtml,automationHtml,settingsHtml } from './admin-views.js';
+import { bridgeHtml } from './bridge-view.js';
 import { taskListHtml,taskDetailHtml } from './task-views.js';
 
 export async function render(){
