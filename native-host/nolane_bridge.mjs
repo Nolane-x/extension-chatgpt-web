@@ -8,7 +8,8 @@ import crypto from 'node:crypto';
 const HOST='127.0.0.1';
 const PORT=Number(process.env.NOLANE_SENTINEL_PORT||17892);
 const PROTOCOL='2026-07-28';
-const SERVER_INFO={name:'nolane-sentinel-bridge',version:'0.2.0'};
+const VERSION='0.2.1';
+const SERVER_INFO={name:'nolane-sentinel-bridge',version:VERSION};
 const CONFIG_DIR=path.join(os.homedir(),'.nolane-sentinel');
 const TOKEN_PATH=path.join(CONFIG_DIR,'bridge-token.json');
 const MAX_NATIVE_OUT=900_000;
@@ -115,7 +116,7 @@ async function handleMcp(body){
 const server=http.createServer(async(req,res)=>{
   try{
     if(!originAllowed(req)){json(res,403,{error:'Origin not allowed'});return;}
-    if(req.url==='/health'&&req.method==='GET'){json(res,200,{ok:true,name:'nolane-sentinel-bridge',version:'0.2.0',protocol:PROTOCOL});return;}
+    if(req.url==='/health'&&req.method==='GET'){json(res,200,{ok:true,name:'nolane-sentinel-bridge',version:VERSION,protocol:PROTOCOL});return;}
     if(!authorized(req)){json(res,401,{error:'Unauthorized'},{'www-authenticate':'Bearer'});return;}
     if(req.url==='/events'&&req.method==='GET'){
       res.writeHead(200,{'content-type':'text/event-stream','cache-control':'no-cache, no-store','connection':'keep-alive','x-accel-buffering':'no'});res.write(`event: ready\ndata: ${JSON.stringify({protocol:PROTOCOL})}\n\n`);sseClients.add(res);req.on('close',()=>sseClients.delete(res));return;
