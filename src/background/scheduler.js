@@ -1,6 +1,7 @@
 import { evaluateQueuedActions, normalizeQueuedAction } from '../core/action-queue.js';
 import { evaluateAutomationRules, nextRetryDelay } from '../core/automation.js';
 import { mayRetrySession } from '../core/state-machine.js';
+import { createSingleFlightGuard } from '../core/single-flight.js';
 import { appendTimeline } from './context-vault.js';
 import {
   runtime, sessions, localTimers, safeError, saveQueue, publicSession, broadcast,
@@ -8,6 +9,8 @@ import {
 } from './runtime-state.js';
 import { requestSnapshot, attachIfNeeded } from './session-runtime.js';
 import { doSend, doRetryNow, continueNewChat } from './action-controller.js';
+
+const scheduledExecutionGuard=createSingleFlightGuard();
 
 export async function queueSend(tabId,text,params={}) {
   const tab=await chrome.tabs.get(tabId);if(!tab?.url?.startsWith('https://chatgpt.com/'))throw new Error('Tab đích không phải ChatGPT Web.');
@@ -59,21 +62,38 @@ export async function scheduleSystemAction(kind,tabId,dueAt,payload={}) {
 }
 
 export async function executeScheduled(name,kind,tabId,payload={}) {
-  const local=localTimers.get(name);if(local){clearTimeout(local.timer);localTimers.delete(name);}
-  const persisted=await takeScheduledAction(name).catch(()=>null);
-  if(persisted){kind=persisted.kind||kind;tabId=Number(persisted.tabId??tabId);payload=persisted.payload||payload||{};}
-  await chrome.alarms.clear(name).catch(()=>{});
-  if(!sessions.has(tabId)){
-    const tab=await chrome.tabs.get(tabId).catch(()=>null);
-    if(tab?.url?.startsWith('https://chatgpt.com/')){await attachIfNeeded(tabId).catch(()=>{});await requestSnapshot(tabId).catch(()=>{});}
+  if(!scheduledExecutionGuard.tryClaim(name))return {ok:false,skipped:'already_claimed'};
+  try {
+    const local=localTimers.get(name);if(local){clearTimeout(local.timer);localTimers.delete(name);}
+    const persisted=await takeScheduledAction(name).catch(()=>null);
+    if(!persisted){await chrome.alarms.clear(name).catch(()=>{});return {ok:false,skipped:'missing_durable_action'};}
+    kind=persisted.kind||kind;tabId=Number(persisted.tabId??tabId);payload=persisted.payload||{};
+    await chrome.alarms.clear(name).catch(()=>{});
+    if(!sessions.has(tabId)){
+      const tab=await chrome.tabs.get(tabId).catch(()=>null);
+      if(tab?.url?.startsWith('https://chatgpt.com/')){await attachIfNeeded(tabId).catch(()=>{});await requestSnapshot(tabId).catch(()=>{});}
+    }
+    if(kind==='recovery'){
+      const session=sessions.get(tabId);if(!session)return {ok:false,skipped:'missing_session'};
+      await requestSnapshot(tabId);
+      if(mayRetrySession(session.stateInfo)){
+        try{await doRetryNow(tabId);}
+        catch(error){
+          session.recovery=null;
+          await appendTimeline(tabId,{kind:'recovery.failed',attempt:session.recoveryAttempt||0,error:safeError(error)}).catch(()=>{});
+          if((session.recoveryAttempt||0)<runtime.settings.recovery.maxAttempts)await scheduleRecovery(session);
+          throw error;
+        }
+      }
+      session.recovery=null;return {ok:true};
+    }
+    if(kind==='handoff'){await requestSnapshot(tabId);if(sessions.get(tabId)?.stateInfo?.state==='CONVERSATION_LIMIT')await continueNewChat(tabId);return {ok:true};}
+    if(kind==='automation'){await executeAutomation(payload.ruleId,tabId,payload.action);return {ok:true};}
+    if(kind==='queue'){await executeQueuedAction(payload.queueId,tabId);return {ok:true};}
+    return {ok:false,skipped:'unknown_kind'};
+  } finally {
+    scheduledExecutionGuard.release(name);
   }
-  if(kind==='recovery'){
-    const session=sessions.get(tabId);if(!session)return;await requestSnapshot(tabId);
-    if(mayRetrySession(session.stateInfo))await doRetryNow(tabId);session.recovery=null;return;
-  }
-  if(kind==='handoff'){await requestSnapshot(tabId);if(sessions.get(tabId)?.stateInfo?.state==='CONVERSATION_LIMIT')await continueNewChat(tabId);return;}
-  if(kind==='automation'){await executeAutomation(payload.ruleId,tabId,payload.action);return;}
-  if(kind==='queue')await executeQueuedAction(payload.queueId,tabId);
 }
 
 export async function scheduleRecovery(session) {
