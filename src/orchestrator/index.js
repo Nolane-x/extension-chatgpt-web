@@ -6,3 +6,4 @@ export { createCheckpoint } from './checkpoints.js';
 export { mergeTaskArtifacts } from './artifacts.js';
 export { normalizeOrchestratorSnapshot,serializeOrchestratorSnapshot,deserializeOrchestratorSnapshot } from './store-codec.js';
 export { openOrchestratorStore,loadOrchestratorSnapshot,saveTask,saveWorker,saveLease,saveCheckpoint,saveArtifacts } from './store.js';
+export { createOrchestratorService } from './service.js';
