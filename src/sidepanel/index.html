@@ -7,6 +7,7 @@
   <title>Nolane Sentinel</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="microscope.css">
+  <link rel="stylesheet" href="mission-control.css">
 </head>
 <body>
   <div class="app-shell">
@@ -26,6 +27,7 @@
 
     <nav class="nav-rail" aria-label="Điều hướng">
       <button class="nav-item active" data-view="overview"><span>◫</span><b data-i18n="overview">Tổng quan</b></button>
+      <button class="nav-item" data-view="tasks"><span>⌘</span><b data-i18n="tasks">Công việc</b><em id="taskBadge">0</em></button>
       <button class="nav-item" data-view="files"><span>⇩</span><b data-i18n="files">Tệp</b><em id="fileBadge">0</em></button>
       <button class="nav-item" data-view="automation"><span>↻</span><b data-i18n="automation">Tự động hóa</b></button>
       <button class="nav-item" data-view="bridge"><span>⌁</span><b data-i18n="agentPort">Cổng AI</b></button>
