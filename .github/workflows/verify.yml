@@ -6,6 +6,7 @@ on:
     paths-ignore:
       - 'verification/**'
       - 'release/v*/**'
+      - 'release/trigger-v*.json'
   pull_request:
 
 permissions:
