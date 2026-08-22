@@ -1,6 +1,7 @@
 export function createTaskCommandRouter(service,options={}){
   if(!service||typeof service!=='object')throw new TypeError('orchestrator service is required');
   const getRecoveryPolicy=typeof options.getRecoveryPolicy==='function'?options.getRecoveryPolicy:()=>({});
+  const assertActiveTask=(taskId)=>{const status=String(service.getTask(taskId,{includeCheckpoints:false})?.task?.status||'').toUpperCase();if(status!=='ACTIVE')throw new Error(`TASK_NOT_ACTIVE: task ${taskId||''} is ${status||'UNKNOWN'}`);};
   return async function routeTaskCommand(action,params={},context={source:'ui'}){
     const source=context?.source||'ui';
     if(action==='taskCreate')return service.createTask({title:params.title,goal:params.goal,metadata:params.metadata});
@@ -16,9 +17,9 @@ export function createTaskCommandRouter(service,options={}){
     }
     if(action==='taskHeartbeatLease')return service.heartbeatLease(params.taskId,params.workerId,{leaseId:params.leaseId,ownerId:params.ownerId,ttlMs:params.ttlMs});
     if(action==='taskReleaseLease')return service.releaseLease(params.taskId,params.workerId,{leaseId:params.leaseId,ownerId:params.ownerId,reason:params.reason});
-    if(action==='taskAcquireBestWorker')return service.acquireBestWorker(params.taskId,{ownerId:params.ownerId,ownerType:source==='agent'?'agent':(params.ownerType||'human'),ttlMs:params.ttlMs,intent:params.intent||'send',preferredConversationId:params.preferredConversationId});
-    if(action==='taskSend')return service.taskSend(params);
-    if(action==='taskQueueSend')return service.taskQueueSend(params);
+    if(action==='taskAcquireBestWorker'){assertActiveTask(params.taskId);return service.acquireBestWorker(params.taskId,{ownerId:params.ownerId,ownerType:source==='agent'?'agent':(params.ownerType||'human'),ttlMs:params.ttlMs,intent:params.intent||'send',preferredConversationId:params.preferredConversationId});}
+    if(action==='taskSend'){assertActiveTask(params.taskId);return service.taskSend(params);}
+    if(action==='taskQueueSend'){assertActiveTask(params.taskId);return service.taskQueueSend(params);}
     if(action==='taskWait')return service.taskWait(params);
     if(action==='taskCheckpoint')return service.checkpoint(params.taskId,{kind:params.kind,summary:params.summary,workerId:params.workerId,artifactIds:params.artifactIds,contextRef:params.contextRef,metadata:params.metadata});
     if(action==='taskListCheckpoints')return {checkpoints:service.listCheckpoints(params.taskId)};
