@@ -26,7 +26,7 @@ function sha256(file){return crypto.createHash('sha256').update(fs.readFileSync(
 
 if(!fs.existsSync(path.join(root,releaseNotes)))throw new Error(`Thiếu release notes: ${releaseNotes}`);
 const extensionFiles=['manifest.json',...filesUnder('_locales'),...filesUnder('src')];
-const nativeFiles=[...filesUnder('native-host'),'docs/protocol.md','SECURITY.md'];
+const nativeFiles=[...filesUnder('native-host'),'src/core/task-protocol.js','docs/protocol.md','SECURITY.md'];
 const sourceFiles=['manifest.json','package.json','README.md','SECURITY.md','CHANGELOG.md',releaseNotes,'.gitignore',...filesUnder('_locales'),...filesUnder('src'),...filesUnder('native-host'),...filesUnder('docs'),...filesUnder('tests'),...filesUnder('scripts'),...filesUnder('.github')].filter((x)=>fs.existsSync(path.join(root,x)));
 const artifacts=[zip(`nolane-sentinel-v${version}-extension.zip`,extensionFiles),zip(`nolane-sentinel-v${version}-native-bridge.zip`,nativeFiles),zip(`nolane-sentinel-v${version}-source.zip`,sourceFiles)];
 const lines=artifacts.map((file)=>`${sha256(file)}  ${path.basename(file)}`);
