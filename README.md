@@ -4,11 +4,24 @@
 
 Nó không chỉ hỏi “nút Stop còn hay mất”. Sentinel hợp nhất DOM, trạng thái hiển thị công khai, CDP/Network, thời gian ổn định, tool activity, artifact/file, Context Vault, watchdog, task graph và lease authority để hiểu ChatGPT đang thực sự ở đâu trong vòng đời công việc.
 
+> **Repository chính thức:** `https://github.com/Nolane-x/gptweb`  
 > **Phiên bản:** `0.3.0`  
 > **Ngôn ngữ mặc định:** Tiếng Việt; có English mode  
 > **Nền tảng:** Chrome 120+ / Manifest V3  
 > **MCP:** `2026-07-28`  
 > **Mặc định an toàn:** Automation tắt, AI Bridge tắt, agent chỉ có `observe` + `open`.
+
+## ⚠️ Miễn trừ trách nhiệm
+
+Nolane Sentinel / `Nolane-x/gptweb` là **dự án độc lập**, không phải sản phẩm của OpenAI và không được OpenAI tài trợ, chứng thực, phê duyệt hay liên kết chính thức. `OpenAI`, `ChatGPT` và các nhãn hiệu liên quan thuộc chủ sở hữu tương ứng.
+
+Phần mềm được cung cấp **“AS IS” / nguyên trạng**. ChatGPT Web có thể thay đổi theo account, model và UI rollout; các cơ chế như `DOM_DRIFT`, evidence fusion, lease guard và fail-closed giúp giảm rủi ro nhưng không bảo đảm tự động hóa luôn chính xác hoặc luôn tương thích.
+
+Khi bật Native Bridge, MCP, automation hoặc cấp quyền cho AI agent, **người dùng chịu trách nhiệm về scope đã cấp, prompt/action được gửi, file được tải xuống, dữ liệu được xử lý và việc tuân thủ điều khoản dịch vụ/pháp luật áp dụng**. Sentinel không tự thực thi file tải về và không bypass login, rate limit, usage limit hay access control.
+
+Trong phạm vi tối đa pháp luật cho phép, tác giả/maintainer/contributor không chịu trách nhiệm đối với thiệt hại gián tiếp, hệ quả, mất dữ liệu, mất quyền truy cập tài khoản hoặc gián đoạn công việc phát sinh từ việc sử dụng phần mềm. Nội dung này không nhằm loại trừ trách nhiệm mà pháp luật bắt buộc không cho phép loại trừ.
+
+Đọc bản đầy đủ: **[`DISCLAIMER.md`](DISCLAIMER.md)**. Tài liệu miễn trừ này không phải tư vấn pháp lý.
 
 ---
 
@@ -526,8 +539,8 @@ Cổng AI render trực tiếp canonical `AGENT_SCOPES`, nên UI permission khô
 ## Từ source
 
 ```bash
-git clone https://github.com/Nolane-x/extension-chatgpt-web.git
-cd extension-chatgpt-web
+git clone https://github.com/Nolane-x/gptweb.git
+cd gptweb
 npm test
 npm run verify
 ```
@@ -644,7 +657,7 @@ GitHub Release workflow sau publish còn chạy `gh release view` và ghi `verif
 - Sentinel không tự execute file tải về.
 - Diagnostics được giới hạn; không dump hidden reasoning.
 
-Xem [`SECURITY.md`](SECURITY.md).
+Xem [`SECURITY.md`](SECURITY.md) và [`DISCLAIMER.md`](DISCLAIMER.md).
 
 ---
 
@@ -671,6 +684,7 @@ Vì vậy thiết kế ưu tiên:
 - [`docs/task-orchestrator.md`](docs/task-orchestrator.md) — Task Orchestrator core.
 - [`docs/task-control-plane.md`](docs/task-control-plane.md) — Task Control Plane / authority.
 - [`SECURITY.md`](SECURITY.md) — security model.
+- [`DISCLAIMER.md`](DISCLAIMER.md) — miễn trừ trách nhiệm và phạm vi sử dụng.
 - [`CHANGELOG.md`](CHANGELOG.md) — lịch sử phiên bản.
 - [`RELEASE_NOTES_v0.3.0.md`](RELEASE_NOTES_v0.3.0.md) — release notes v0.3.0.
 
@@ -680,4 +694,4 @@ Vì vậy thiết kế ưu tiên:
 
 **Nolane Sentinel biến nhiều ChatGPT Web tab từ những cửa sổ độc lập thành một runtime có state truth, recovery, artifact workflow, task graph, lease authority, Mission Control và cổng MCP cho AI agent — nhưng vẫn ưu tiên quyền kiểm soát của người dùng và fail-closed khi UI không còn chắc chắn.**
 
-Nolane Sentinel là phần mềm độc lập, không liên kết hay được OpenAI chứng thực.
+Nolane Sentinel là phần mềm độc lập, không liên kết hay được OpenAI chứng thực. Xem đầy đủ tại [`DISCLAIMER.md`](DISCLAIMER.md).
