@@ -7,9 +7,9 @@ import {
   artifactWithId, publicSession, broadcast, isChatGptUrl
 } from './runtime-state.js';
 import {
-  restoreSession, attachIfNeeded, requestSnapshot, captureDriftEvidence, processSnapshot
+  restoreSession, attachIfNeeded, requestSnapshot, captureDriftEvidence, processSnapshot, clearCompletionSettle
 } from './session-runtime.js';
-import { executeScheduled, installSchedulerHooks } from './scheduler.js';
+import { executeScheduled, installSchedulerHooks, restoreTimedAutomations } from './scheduler.js';
 import { configureControlPlane, handleCommand, initializeNativeBridge } from './control-plane.js';
 import { initializeOrchestratorRuntime, detachOrchestratorTab, syncOrchestratorSession } from './orchestrator-runtime.js';
 
@@ -35,6 +35,7 @@ export async function applySettings() {
     for(const tabId of tabIds)detachDeepObserver(tabId).catch(()=>{});
   }
   runtime.bridge?.setEnabled(Boolean(runtime.settings.bridgeEnabled));
+  if(runtime.settings.automationsEnabled&&!runtime.settings.automationPaused)restoreTimedAutomations().catch(()=>{});
   if(runtime.settings.watchdog.enabled){
     await chrome.alarms.create('sentinel:watchdog',{periodInMinutes:Math.max(0.5,Number(runtime.settings.watchdog.periodMinutes)||0.5)});
   }else await chrome.alarms.clear('sentinel:watchdog');
@@ -52,6 +53,7 @@ export async function runWatchdog() {
   const queueBefore=runtime.queuedActions.length;
   for(const tabId of [...sessions.keys()]){
     if(live.has(tabId))continue;
+    clearCompletionSettle(tabId);
     await detachOrchestratorTab(tabId).catch(()=>{});
     sessions.delete(tabId);clearTelemetry(tabId);
     runtime.queuedActions=runtime.queuedActions.filter((item)=>item.tabId!==tabId);
@@ -106,6 +108,7 @@ function installTabLifecycle() {
     }
   });
   chrome.tabs.onRemoved.addListener((tabId)=>{
+    clearCompletionSettle(tabId);
     detachOrchestratorTab(tabId).catch(()=>{});
     sessions.delete(tabId);clearTelemetry(tabId);
     const before=runtime.queuedActions.length;
@@ -150,6 +153,7 @@ function installAlarmAndCommandLifecycle() {
     if(command==='toggle-automation-pause'){
       runtime.settings.automationPaused=!runtime.settings.automationPaused;
       await chrome.storage.local.set({settings:runtime.settings});
+      if(!runtime.settings.automationPaused&&runtime.settings.automationsEnabled)restoreTimedAutomations().catch(()=>{});
       broadcast({kind:'settings.changed',settings:runtime.settings}).catch(()=>{});
     }
   });
@@ -176,6 +180,6 @@ export async function bootstrapLifecycle() {
   installSchedulerHooks();configureControlPlane({applySettings});initializeNativeBridge();
   installCdpLifecycle();installChromeListeners();
   await chrome.sidePanel.setPanelBehavior({openPanelOnActionClick:true}).catch(()=>{});
-  await discoverTabs();await applySettings();await runWatchdog().catch(()=>{});
+  await discoverTabs();await applySettings();await restoreTimedAutomations().catch(()=>{});await runWatchdog().catch(()=>{});
   return {sessions:sessions.size,bridge:runtime.bridgeStatus};
 }
