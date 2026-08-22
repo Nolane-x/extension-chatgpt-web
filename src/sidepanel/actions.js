@@ -9,11 +9,18 @@ async function refresh({quiet=false}={}){
   try{
     ui.dashboard=await command('getDashboardState');
     await taskController.refreshTaskData({detail:Boolean(ui.selectedTaskId)});
+    if(ui.view==='microscope'&&Number.isInteger(Number(ui.selectedTabId))){
+      const observed=await command('observe',{tabId:Number(ui.selectedTabId),includeContext:true}).catch(()=>null);
+      if(observed?.context)ui.context=observed.context;
+    }
     ui.lastRefreshAt=Date.now();syncHeader();await render();
   }catch(error){if(!quiet)toast(error.message,true);syncHeader(false);}finally{ui.loading=false;}
 }
 async function openMicroscope(tabId){ui.selectedTaskId=null;ui.taskDetail=null;ui.taskRecovery=null;ui.selectedTabId=tabId;ui.view='microscope';ui.context=null;ui.diagnostic=null;await render();try{const observed=await command('observe',{tabId,includeContext:true});ui.context=observed.context||null;ui.diagnostic=await command('diagnose',{tabId});await render();}catch(error){toast(error.message,true);}}
 function nestedPatch(key,value){const s=ui.dashboard.settings||{};if(key==='recovery.enabled')return {recovery:{...(s.recovery||{}),enabled:value}};if(key==='handoff.enabled')return {handoff:{...(s.handoff||{}),enabled:value}};if(key==='watchdog.enabled')return {watchdog:{...(s.watchdog||{}),enabled:value}};return {[key]:value};}
+function clearField(id){const field=document.getElementById(id);if(field)field.value='';}
+async function enableAutomationEngine(){if(!ui.dashboard.settings?.automationsEnabled||ui.dashboard.settings?.automationPaused)await command('updateSettings',{patch:{automationsEnabled:true,automationPaused:false}});}
+
 async function handleAction(target){
   const action=target.dataset.action;if(!action)return;
   try{
@@ -24,7 +31,16 @@ async function handleAction(target){
     else if(action==='diagnose'){ui.diagnostic=await command('diagnose',{tabId});toast(`Diagnostic: ${ui.diagnostic.session?.health?.level||'ok'}`);if(ui.view==='microscope')await render();}
     else if(action==='microscope')return openMicroscope(tabId);
     else if(action==='queue'){const text=prompt('Prompt sẽ được gửi khi phiên an toàn:');if(text)await command('queueSend',{tabId,text,source:'user'});}
-    else if(action==='queue-from-detail'){const text=document.getElementById('microscopeQueue')?.value;if(text)await command('queueSend',{tabId,text,source:'user'});}
+    else if(action==='queue-from-detail'){
+      const field=document.getElementById('microscopeQueue'),text=field?.value?.trim();if(!text)throw new Error('Prompt tiếp theo đang trống.');
+      await command('queueSend',{tabId,text,source:'user'});if(field)field.value='';toast('Đã thêm vào Safe Queue.');
+    }
+    else if(action==='automation-after-complete'){
+      const field=document.getElementById('microscopeQueue'),text=field?.value?.trim();if(!text)throw new Error('Prompt tiếp theo đang trống.');
+      const id=crypto.randomUUID();
+      await command('saveAutomation',{rule:{id,name:`Tab ${tabId}: COMPLETED → send`,enabled:true,trigger:'state',whenState:'COMPLETED',tabId,delayMs:350,maxRuns:1,runCount:0,cooldownMs:2000,requireConfidence:.9,action:{type:'send',text}}});
+      await enableAutomationEngine();if(field)field.value='';toast('Đã bật automation một lần: gửi prompt khi phiên HOÀN TẤT.');
+    }
     else if(action==='stop'){await command('stop',{tabId});toast('Đã gửi lệnh dừng turn.');}
     else if(action==='retry'){const result=await command('retry',{tabId});toast(`Retry đã được lên lịch lúc ${new Date(result.dueAt).toLocaleTimeString()}.`);}
     else if(action==='handoff'){const result=await command('continueNewChat',{tabId});toast(`Đã handoff sang tab ${result.newTabId}.`);}
@@ -33,7 +49,22 @@ async function handleAction(target){
     else if(action==='open-artifact'&&target.dataset.href)await chrome.tabs.create({url:target.dataset.href,active:true});
     else if(action==='cancel-queue')await command('cancelQueued',{queueId:target.dataset.queue});
     else if(action==='toggle-rule')await command('setAutomationEnabled',{ruleId:target.dataset.rule,enabled:target.dataset.enabled!=='1'});
-    else if(action==='create-rule'){const text=document.getElementById('rulePrompt')?.value?.trim();if(!text)throw new Error('Prompt automation đang trống.');const state=document.getElementById('ruleState').value,delayMs=Math.max(0,Number(document.getElementById('ruleDelay').value)||0)*1000,maxRuns=Math.max(1,Number(document.getElementById('ruleMaxRuns').value)||1);await command('saveAutomation',{rule:{id:crypto.randomUUID(),name:`${state} → send`,enabled:true,trigger:'state',whenState:state,delayMs,maxRuns,cooldownMs:2000,requireConfidence:.7,action:{type:'send',text}}});}
+    else if(action==='create-rule'){
+      const text=document.getElementById('rulePrompt')?.value?.trim();if(!text)throw new Error('Prompt automation đang trống.');
+      const trigger=document.getElementById('ruleTrigger')?.value||'state';
+      const tab=Number(document.getElementById('ruleTab')?.value);if(!Number.isInteger(tab)||tab<=0)throw new Error('Hãy chọn một tab ChatGPT đích.');
+      const maxRuns=Math.max(1,Number(document.getElementById('ruleMaxRuns')?.value)||1),delayMs=Math.max(0,Number(document.getElementById('ruleDelay')?.value)||0)*1000;
+      const rule={id:crypto.randomUUID(),name:'',enabled:true,trigger,tabId:tab,maxRuns,runCount:0,cooldownMs:2000,action:{type:'send',text}};
+      if(trigger==='time'){
+        const raw=document.getElementById('ruleRunAt')?.value,runAt=new Date(raw||'').getTime();if(!Number.isFinite(runAt)||runAt<Date.now()+1000)throw new Error('Hãy chọn thời gian trong tương lai.');
+        rule.runAt=runAt;rule.maxRuns=1;rule.name=`Tab ${tab}: ${new Date(runAt).toLocaleString()} → send`;
+      }else{
+        const state=document.getElementById('ruleState')?.value||'COMPLETED';rule.whenState=state;rule.delayMs=delayMs;rule.requireConfidence=.7;rule.name=`Tab ${tab}: ${state} → send`;
+      }
+      await command('saveAutomation',{rule});
+      if(document.getElementById('ruleEnableEngine')?.checked!==false)await enableAutomationEngine();
+      clearField('rulePrompt');toast(trigger==='time'?'Đã lên lịch prompt theo thời gian.':'Đã tạo automation theo trạng thái.');
+    }
     else if(action==='toggle-bridge')await command('updateSettings',{patch:{bridgeEnabled:!ui.dashboard.settings.bridgeEnabled}});
     else if(action==='setting-toggle'){const key=target.dataset.key,current=key.includes('.')?key.split('.').reduce((obj,k)=>obj?.[k],ui.dashboard.settings):ui.dashboard.settings?.[key];await command('updateSettings',{patch:nestedPatch(key,!current)});}
     else if(action==='delete-context'){if(confirm('Xóa Context Vault của phiên này?')){await command('deleteContext',{tabId});ui.context={timeline:[]};}}
