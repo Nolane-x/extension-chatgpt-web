@@ -2,8 +2,9 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
+    paths:
+      - 'release/trigger-v*.json'
   workflow_dispatch:
     inputs:
       tag:
@@ -17,7 +18,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,31 +31,54 @@ jobs:
         shell: bash
         run: |
           VERSION="$(node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version")"
-          TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="v$VERSION"
+          fi
           test "$TAG" = "v$VERSION" || { echo "Tag $TAG không khớp package version v$VERSION" >&2; exit 1; }
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-      - run: npm run release:check
+      - name: Full release verification
+        run: npm run release:check
       - name: Kiểm tra checksum
         working-directory: dist
         run: sha256sum -c SHA256SUMS.txt
-      - name: Tạo tag khi chạy thủ công
-        if: github.event_name == 'workflow_dispatch'
+      - name: Commit release mirror khi phát hành từ main
         shell: bash
         run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git tag "${{ steps.meta.outputs.tag }}" "${{ github.sha }}"
-          git push origin "${{ steps.meta.outputs.tag }}"
-      - name: Publish GitHub Release
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "release/v${{ steps.meta.outputs.version }}"
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: mirror Nolane Sentinel ${{ steps.meta.outputs.tag }} artifacts"
+            git push origin HEAD:main
+          fi
+      - name: Tạo tag release nếu chưa có
+        shell: bash
+        run: |
+          TAG="${{ steps.meta.outputs.tag }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "$TAG đã tồn tại; giữ nguyên tag."
+          else
+            git tag -a "$TAG" -m "Nolane Sentinel $TAG" "$(git rev-parse HEAD)"
+            git push origin "$TAG"
+          fi
+      - name: Publish hoặc cập nhật GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh release create "${{ steps.meta.outputs.tag }}" \
-            dist/nolane-sentinel-v${{ steps.meta.outputs.version }}-extension.zip \
-            dist/nolane-sentinel-v${{ steps.meta.outputs.version }}-native-bridge.zip \
-            dist/nolane-sentinel-v${{ steps.meta.outputs.version }}-source.zip \
-            dist/SHA256SUMS.txt \
-            --title "Nolane Sentinel ${{ steps.meta.outputs.tag }}" \
-            --notes-file "RELEASE_NOTES_v${{ steps.meta.outputs.version }}.md"
+          TAG="${{ steps.meta.outputs.tag }}"
+          VERSION="${{ steps.meta.outputs.version }}"
+          ASSETS=(
+            "dist/nolane-sentinel-v${VERSION}-extension.zip"
+            "dist/nolane-sentinel-v${VERSION}-native-bridge.zip"
+            "dist/nolane-sentinel-v${VERSION}-source.zip"
+            "dist/SHA256SUMS.txt"
+          )
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${ASSETS[@]}" --clobber
+          else
+            gh release create "$TAG" "${ASSETS[@]}" --title "Nolane Sentinel $TAG" --notes-file "RELEASE_NOTES_v${VERSION}.md"
+          fi
