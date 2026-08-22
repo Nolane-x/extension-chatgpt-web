@@ -83,11 +83,15 @@ const backgroundRuntime = fs.readdirSync(backgroundDir)
   .filter((name)=>name.endsWith('.js'))
   .map((name)=>fs.readFileSync(path.join(backgroundDir,name),'utf8'))
   .join('\n');
-for (const marker of ['domHealth:s.domHealth||{}','domHealth:saved.domHealth||{}',"chrome.alarms.create('sentinel:watchdog'",'queueSend','waitUntil','downloadAllArtifacts','initializeNativeBridge','installSchedulerHooks','createSingleFlightGuard','missing_durable_action','orchestratorSync','initializeOrchestratorRuntime','handleOrchestratorCommand','detachOrchestratorTab','taskDashboard']) {
+for (const marker of ['domHealth:s.domHealth||{}','domHealth:saved.domHealth||{}',"chrome.alarms.create('sentinel:watchdog'",'queueSend','waitUntil','downloadAllArtifacts','initializeNativeBridge','installSchedulerHooks','createSingleFlightGuard','missing_durable_action','orchestratorSync','initializeOrchestratorRuntime','handleOrchestratorCommand','detachOrchestratorTab','taskDashboard','completionSettler.reconcile','restoreTimedAutomations','AUTOMATION_QUEUED','QUEUE_CREATED','SEND_PRECHECK']) {
   if (!backgroundRuntime.includes(marker)) fail(`Thiếu runtime release marker: ${marker}`);
 }
 for (const requiredModule of ['runtime-state.js','session-runtime.js','action-controller.js','scheduler.js','control-plane.js','lifecycle.js','orchestrator-runtime.js','service-worker.js']) if (!exists(`src/background/${requiredModule}`)) fail(`Thiếu background module: ${requiredModule}`);
-if (!exists('src/core/single-flight.js')) fail('Thiếu single-flight guard module');
+for (const requiredCore of ['single-flight.js','completion-settle.js','action-trace.js']) if (!exists(`src/core/${requiredCore}`)) fail(`Thiếu core safety module: ${requiredCore}`);
+const completionSettle=read('src/core/completion-settle.js'),actionTrace=read('src/core/action-trace.js'),automationCore=read('src/core/automation.js');
+for(const marker of ['completionCandidate','COMPLETING','onDue','candidate.signature'])if(!completionSettle.includes(marker))fail(`Completion settle coordinator thiếu marker: ${marker}`);
+for(const marker of ['SAFE_KEYS','slice(-','stage'])if(!actionTrace.includes(marker))fail(`Action trace boundary thiếu marker: ${marker}`);
+for(const marker of ['automationDueAt','automationDeliveryMode','safe_queue'])if(!automationCore.includes(marker))fail(`Automation scheduler core thiếu marker: ${marker}`);
 
 const orchestratorModules=['domain.js','leases.js','selection.js','recovery.js','checkpoints.js','artifacts.js','store-codec.js','store.js','index.js','service.js','commands.js'];
 for(const module of orchestratorModules)if(!exists(`src/orchestrator/${module}`))fail(`Thiếu Task Orchestrator module: ${module}`);
@@ -96,13 +100,17 @@ for(const marker of ['LEASE_CONFLICT','NO_ELIGIBLE_WORKER','DOM_DRIFT','nolane-s
 const orchestratorFacade=read('src/orchestrator/index.js');
 for(const exported of ['createTask','acquireLease','selectWorker','createCheckpoint','recommendWorkerRecovery','mergeTaskArtifacts','loadOrchestratorSnapshot','createOrchestratorService'])if(!orchestratorFacade.includes(exported))fail(`Task Orchestrator facade thiếu export: ${exported}`);
 
-const sidepanelModules=['task-model.js','task-views.js','task-actions.js','bridge-view.js','mission-control.css'];
-for(const module of sidepanelModules)if(!exists(`src/sidepanel/${module}`))fail(`Thiếu Mission Control module: ${module}`);
-const sidepanelHtml=read('src/sidepanel/index.html'),sidepanelViews=read('src/sidepanel/views.js'),sidepanelActions=read('src/sidepanel/actions.js'),taskModel=read('src/sidepanel/task-model.js'),taskActions=read('src/sidepanel/task-actions.js'),taskViews=read('src/sidepanel/task-views.js'),bridgeView=read('src/sidepanel/bridge-view.js'),missionCss=read('src/sidepanel/mission-control.css');
+const sidepanelModules=['task-model.js','task-views.js','task-actions.js','bridge-view.js','mission-control.css','form-state.js'];
+for(const module of sidepanelModules)if(!exists(`src/sidepanel/${module}`))fail(`Thiếu Side Panel/Mission Control module: ${module}`);
+const sidepanelHtml=read('src/sidepanel/index.html'),sidepanelViews=read('src/sidepanel/views.js'),sidepanelActions=read('src/sidepanel/actions.js'),sessionViews=read('src/sidepanel/session-views.js'),adminViews=read('src/sidepanel/admin-views.js'),formState=read('src/sidepanel/form-state.js'),taskModel=read('src/sidepanel/task-model.js'),taskActions=read('src/sidepanel/task-actions.js'),taskViews=read('src/sidepanel/task-views.js'),bridgeView=read('src/sidepanel/bridge-view.js'),missionCss=read('src/sidepanel/mission-control.css');
 for(const marker of ['mission-control.css','data-view="tasks"','id="taskBadge"'])if(!sidepanelHtml.includes(marker))fail(`Mission Control navigation thiếu marker: ${marker}`);
 if(!sidepanelHtml.includes('<title>Vigilume</title>')||!sidepanelHtml.includes('>VIGILUME</div>'))fail('Side Panel phải dùng Vigilume branding');
 for(const marker of ['taskListHtml','taskDetailHtml','bridgeHtml'])if(!sidepanelViews.includes(marker))fail(`Mission Control router thiếu marker: ${marker}`);
 for(const marker of ['createTaskActionController','refreshTaskData'])if(!sidepanelActions.includes(marker))fail(`Mission Control action wiring thiếu marker: ${marker}`);
+for(const marker of ['automation-after-complete','includeContext:true','ruleRunAt','ruleTrigger'])if(!sidepanelActions.includes(marker))fail(`Automation/Microscope action wiring thiếu marker: ${marker}`);
+for(const marker of ['actionTraceHtml','AUTOMATION_TRIGGERED','Tự gửi khi HOÀN TẤT'])if(!sessionViews.includes(marker))fail(`Microscope action trace/completion automation thiếu marker: ${marker}`);
+for(const marker of ['id="ruleTab"','id="ruleTrigger"','id="ruleRunAt"','Đúng thời gian','Automation engine'])if(!adminViews.includes(marker))fail(`Automation Builder thiếu marker: ${marker}`);
+for(const marker of ['captureFormState','restoreFormState','selectionStart','selectionEnd'])if(!formState.includes(marker))fail(`Side Panel form-state preservation thiếu marker: ${marker}`);
 for(const marker of ['revokedAt==null','lease.status==null'])if(!taskModel.includes(marker)||!taskActions.includes(marker))fail(`Mission Control lease semantics thiếu marker: ${marker}`);
 if(!bridgeView.includes('AGENT_SCOPES'))fail('AI Port phải render canonical AGENT_SCOPES');
 if(!missionCss.includes('grid-template-columns:repeat(6,1fr)')||!missionCss.includes('.lease-chip')||!missionCss.includes('.worker-pool'))fail('Mission Control visual system chưa được nối đầy đủ');
@@ -119,6 +127,8 @@ if(!readme.includes(`**Phiên bản:** \`${manifest.version}\``))fail('README ve
 if(!readme.includes('39 MCP tools'))fail('README phải ghi rõ 39 MCP tools');
 if(!readme.includes('https://github.com/Nolane-x/gptweb'))fail('README phải trỏ đúng repo gptweb');
 if(!readme.includes('DISCLAIMER.md'))fail('README phải link disclaimer');
+for(const artifact of [`vigilume-v${manifest.version}-extension.zip`,`vigilume-v${manifest.version}-native-bridge.zip`,`vigilume-v${manifest.version}-source.zip`])if(!readme.includes(artifact))fail(`README thiếu current release artifact: ${artifact}`);
+if(!readme.includes('Tự gửi khi HOÀN TẤT')||!readme.includes('Đúng thời gian')||!readme.includes('SEND_PRECHECK'))fail('README phải mô tả completion/time automation và action trace');
 if(!protocolDoc.startsWith(`# Vigilume Agent Protocol v${protocolLabel}`))fail('Protocol document version/branding không khớp extension major/minor');
 if(!protocolDoc.includes('- `DECISION`')||!protocolDoc.includes('- `FAILURE`'))fail('Protocol document thiếu checkpoint DECISION/FAILURE');
 if(!exists(`RELEASE_NOTES_v${manifest.version}.md`))fail(`Thiếu release notes cho v${manifest.version}`);
@@ -132,4 +142,4 @@ for(const artifact of ['vigilume-v${VERSION}-extension.zip','vigilume-v${VERSION
 
 const zipLib = read('scripts/zip-lib.mjs');
 if (!zipLib.includes('DOS_DATE') || !zipLib.includes('createDeterministicZip')) fail('Release ZIP phải dùng deterministic builder nội bộ');
-console.log(`verify-extension: PASS (${sourceFiles.length} source files scanned, ${toolNames.length} MCP tools checked, ${orchestratorModules.length} orchestrator modules, ${sidepanelModules.length} Mission Control modules, Vigilume branding locked)`);
+console.log(`verify-extension: PASS (${sourceFiles.length} source files scanned, ${toolNames.length} MCP tools checked, ${orchestratorModules.length} orchestrator modules, ${sidepanelModules.length} Side Panel modules, Vigilume v0.3.2 automation/completion gates locked)`);
