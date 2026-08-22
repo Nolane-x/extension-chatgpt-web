@@ -11,6 +11,7 @@ import {
 } from './session-runtime.js';
 import { executeScheduled, installSchedulerHooks } from './scheduler.js';
 import { configureControlPlane, handleCommand, initializeNativeBridge } from './control-plane.js';
+import { initializeOrchestratorRuntime, detachOrchestratorTab, syncOrchestratorSession } from './orchestrator-runtime.js';
 
 let listenersInstalled=false;
 
@@ -51,6 +52,7 @@ export async function runWatchdog() {
   const queueBefore=runtime.queuedActions.length;
   for(const tabId of [...sessions.keys()]){
     if(live.has(tabId))continue;
+    await detachOrchestratorTab(tabId).catch(()=>{});
     sessions.delete(tabId);clearTelemetry(tabId);
     runtime.queuedActions=runtime.queuedActions.filter((item)=>item.tabId!==tabId);
   }
@@ -83,7 +85,7 @@ function installRuntimeMessaging() {
       return true;
     }
     if(message?.type==='sentinel.commandRequest'){
-      handleCommand(message.command,message.params)
+      handleCommand(message.command,message.params,{source:'ui'})
         .then((result)=>sendResponse({ok:true,result}))
         .catch((error)=>sendResponse({ok:false,error:error instanceof Error?error.message:String(error)}));
       return true;
@@ -104,6 +106,7 @@ function installTabLifecycle() {
     }
   });
   chrome.tabs.onRemoved.addListener((tabId)=>{
+    detachOrchestratorTab(tabId).catch(()=>{});
     sessions.delete(tabId);clearTelemetry(tabId);
     const before=runtime.queuedActions.length;
     runtime.queuedActions=runtime.queuedActions.filter((item)=>item.tabId!==tabId);
@@ -120,6 +123,7 @@ function installDownloadLifecycle() {
       session.artifacts=mergeArtifacts(session.artifacts,[artifactWithId(session.tabId,{...candidate,downloadId:item.id,downloadState:item.state})]);
       appendTimeline(session.tabId,{kind:'download.created',downloadId:item.id,name:item.filename}).catch(()=>{});
       broadcast({kind:'download.created',session:publicSession(session)}).catch(()=>{});
+      syncOrchestratorSession(session).catch(()=>{});
     }
   });
   chrome.downloads.onChanged.addListener((delta)=>{
@@ -129,6 +133,7 @@ function installDownloadLifecycle() {
       if(delta.state)artifact.downloadState=delta.state.current;
       if(delta.error)artifact.downloadError=delta.error.current;
       broadcast({kind:'download.changed',session:publicSession(session)}).catch(()=>{});
+      syncOrchestratorSession(session).catch(()=>{});
     }
   });
 }
@@ -141,7 +146,7 @@ function installAlarmAndCommandLifecycle() {
     executeScheduled(alarm.name,kind,tabId,{}).catch(()=>{});
   });
   chrome.commands.onCommand.addListener(async(command)=>{
-    if(command==='open-new-chat')await handleCommand('openChat',{});
+    if(command==='open-new-chat')await handleCommand('openChat',{}, {source:'ui'});
     if(command==='toggle-automation-pause'){
       runtime.settings.automationPaused=!runtime.settings.automationPaused;
       await chrome.storage.local.set({settings:runtime.settings});
@@ -167,6 +172,7 @@ function installChromeListeners() {
 
 export async function bootstrapLifecycle() {
   await ready;
+  await initializeOrchestratorRuntime();
   installSchedulerHooks();configureControlPlane({applySettings});initializeNativeBridge();
   installCdpLifecycle();installChromeListeners();
   await chrome.sidePanel.setPanelBehavior({openPanelOnActionClick:true}).catch(()=>{});
