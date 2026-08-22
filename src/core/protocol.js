@@ -1,5 +1,7 @@
+import { TASK_AGENT_SCOPES,TASK_ACTION_SCOPE,TASK_ALIASES,TASK_MCP_TOOLS } from './task-protocol.js';
+
 export const AGENT_SCOPES = Object.freeze([
-  'observe','open','compose','send','stop','retry','download','context_read','context_delete','automation_write'
+  'observe','open','compose','send','stop','retry','download','context_read','context_delete','automation_write',...TASK_AGENT_SCOPES
 ]);
 
 export const ACTION_SCOPE = Object.freeze({
@@ -7,7 +9,8 @@ export const ACTION_SCOPE = Object.freeze({
   openChat:'open', compose:'compose', send:'send', queueSend:'send', cancelQueued:'send', listQueue:'observe',
   stop:'stop', retry:'retry', continueNewChat:'send', listArtifacts:'observe', downloadArtifact:'download',
   downloadAllArtifacts:'download', getDownload:'download', getContext:'context_read', deleteContext:'context_delete',
-  listAutomations:'observe', setAutomationEnabled:'automation_write', saveAutomation:'automation_write', deleteAutomation:'automation_write'
+  listAutomations:'observe', setAutomationEnabled:'automation_write', saveAutomation:'automation_write', deleteAutomation:'automation_write',
+  ...TASK_ACTION_SCOPE
 });
 
 const ALIASES = Object.freeze({
@@ -16,7 +19,8 @@ const ALIASES = Object.freeze({
   stop:'stop', retry:'retry', continue_new_chat:'continueNewChat', list_artifacts:'listArtifacts',
   download_artifact:'downloadArtifact', download_all_artifacts:'downloadAllArtifacts', get_download:'getDownload',
   get_context:'getContext', delete_context:'deleteContext',
-  'automation.list':'listAutomations', 'automation.set_enabled':'setAutomationEnabled', 'automation.save':'saveAutomation', 'automation.delete':'deleteAutomation'
+  'automation.list':'listAutomations', 'automation.set_enabled':'setAutomationEnabled', 'automation.save':'saveAutomation', 'automation.delete':'deleteAutomation',
+  ...TASK_ALIASES
 });
 
 export function validateAgentRequest(request, grantedScopes = []) {
@@ -55,4 +59,4 @@ export const MCP_TOOLS = Object.freeze([
   ['automation_set_enabled','Bật/tắt một automation rule.',{ruleId:{type:'string'},enabled:{type:'boolean'}},['ruleId','enabled']],
   ['automation_save','Tạo/cập nhật automation rule.',{rule:{type:'object'}},['rule']],
   ['automation_delete','Xóa automation rule.',{ruleId:{type:'string'}},['ruleId']]
-].map(([name,description,properties,required]) => ({name,description,inputSchema:{type:'object',properties,required,additionalProperties:false}})));
+].map(([name,description,properties,required]) => ({name,description,inputSchema:{type:'object',properties,required,additionalProperties:false}})).concat(TASK_MCP_TOOLS));
