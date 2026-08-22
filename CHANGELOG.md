@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.1 — 2026-08-22
+
+### Scheduler / recovery hardening
+- Thêm `createSingleFlightGuard()` để local timer và `chrome.alarms` không thể cùng thực thi một scheduled action trong cùng service-worker instance.
+- Scheduled callback bắt buộc phải claim được durable record; callback đến muộn nhận `missing_durable_action` và không thao tác ChatGPT.
+- Recovery ghi `recovery.failed` và tự lên lịch attempt tiếp theo bằng bounded backoff nếu thao tác Retry trên UI thất bại.
+- Thêm regression tests cho single-flight semantics.
+
+### Version / verification
+- Bump đồng bộ Manifest, package và Native Bridge lên `0.2.1`.
+- Native Bridge dùng một `VERSION` constant cho server info và `/health`.
+- Static verifier kiểm shared bridge version, single-flight module và runtime markers.
+
+### Release evidence
+- Release workflow sau `gh release create/upload` bắt buộc gọi `gh release view`.
+- Workflow commit `verification/release-vX.Y.Z.published.json` với URL, published time, tag target và asset metadata; nếu Release object không tồn tại thì không có proof.
+
 ## 0.2.0 — 2026-08-22
 
 ### Quan sát & state truth
