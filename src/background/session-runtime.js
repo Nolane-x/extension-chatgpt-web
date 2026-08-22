@@ -1,4 +1,6 @@
 import { deriveSessionState } from '../core/state-machine.js';
+import { DEFAULT_THRESHOLDS } from '../core/constants.js';
+import { createCompletionSettler } from '../core/completion-settle.js';
 import { classifyArtifactCandidate, mergeArtifacts } from '../core/artifacts.js';
 import { shouldAttemptDeepAttach } from '../core/health.js';
 import { readTelemetry, attachDeepObserver, clearSubmission, captureDeepDiagnostics } from './cdp.js';
@@ -7,6 +9,13 @@ import {
   ACTIVE_STATES, runtime, sessions, safeError, publicSession, broadcast,
   ensureSession, artifactWithId
 } from './runtime-state.js';
+
+const completionSettler=createCompletionSettler({
+  settleMs:DEFAULT_THRESHOLDS.completionSettleMs,
+  onDue:(tabId)=>requestSnapshot(tabId)
+});
+
+export function clearCompletionSettle(tabId){completionSettler.cancel(tabId);}
 
 export function sanitizeSnapshot(raw={}) {
   const clamp=(x,n)=>String(x||'').replace(/\u0000/g,'').slice(0,n);
@@ -52,20 +61,21 @@ export async function captureDriftEvidence(session) {
 
 export async function processSnapshot(tabId,rawSnapshot,telemetry=readTelemetry(tabId),source='dom') {
   const snapshot=sanitizeSnapshot(rawSnapshot),session=ensureSession(tabId,{url:snapshot.url,title:snapshot.title});
-  const previous=session.stateInfo||{};
-  session.snapshot=snapshot;session.url=snapshot.url||session.url;session.title=snapshot.title||session.title;session.conversationId=snapshot.conversationId;session.lastSeenAt=Date.now();
+  const previous=session.stateInfo||{},now=Date.now();
+  session.snapshot=snapshot;session.url=snapshot.url||session.url;session.title=snapshot.title||session.title;session.conversationId=snapshot.conversationId;session.lastSeenAt=now;
   session.artifacts=compileArtifacts(tabId,snapshot,telemetry,session.artifacts);
-  const next=deriveSessionState(snapshot,telemetry,previous,Date.now());session.stateInfo=next;
-  if(!ACTIVE_STATES.has(previous.state)&&ACTIVE_STATES.has(next.state))session.turnStartedAt=Date.now();
-  if(next.state==='COMPLETED'){session.completedAt=Date.now();session.recoveryAttempt=0;session.recovery=null;clearSubmission(tabId);}
+  const next=deriveSessionState(snapshot,telemetry,previous,now);session.stateInfo=next;
+  completionSettler.reconcile(tabId,next,now);
+  if(!ACTIVE_STATES.has(previous.state)&&ACTIVE_STATES.has(next.state))session.turnStartedAt=now;
+  if(next.state==='COMPLETED'){session.completedAt=now;session.recoveryAttempt=0;session.recovery=null;clearSubmission(tabId);}
   const changed=previous.state!==next.state;
   if(changed){
     await appendTimeline(tabId,{kind:'state',source,from:previous.state||null,to:next.state,confidence:next.confidence,reason:next.reason,evidence:next.evidence,statusTexts:snapshot.statusTexts.slice(-4)}).catch(()=>{});
     if(next.state==='DOM_DRIFT')captureDriftEvidence(session).catch(()=>{});
     await broadcast({kind:'state.changed',session:publicSession(session)});
     await runtime.hooks.stateChanged(session,previous).catch(()=>{});
-  } else if(source==='cdp'&&Date.now()-(session.lastBroadcastAt||0)>1500){
-    session.lastBroadcastAt=Date.now();await broadcast({kind:'session.pulse',session:publicSession(session)});await runtime.hooks.sessionPulse(session).catch(()=>{});
+  } else if(source==='cdp'&&now-(session.lastBroadcastAt||0)>1500){
+    session.lastBroadcastAt=now;await broadcast({kind:'session.pulse',session:publicSession(session)});await runtime.hooks.sessionPulse(session).catch(()=>{});
   }
   await runtime.hooks.queueReconcile(session).catch(()=>{});
   await runtime.hooks.orchestratorSync(session).catch(()=>{});
