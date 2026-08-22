@@ -3,9 +3,11 @@ import { overviewHtml,microscopeHtml } from './session-views.js';
 import { filesHtml,automationHtml,settingsHtml } from './admin-views.js';
 import { bridgeHtml } from './bridge-view.js';
 import { taskListHtml,taskDetailHtml } from './task-views.js';
+import { captureFormState,restoreFormState } from './form-state.js';
 
 export async function render(){
   const root=document.getElementById('viewRoot');
+  const formState=captureFormState(root,document.activeElement);
   document.querySelectorAll('.nav-item').forEach((n)=>n.classList.toggle('active',n.dataset.view===ui.view||(ui.view==='task-detail'&&n.dataset.view==='tasks')));
   if(ui.view==='microscope'&&ui.selectedTabId!=null)root.innerHTML=microscopeHtml(ui.selectedTabId);
   else if(ui.view==='task-detail'&&ui.selectedTaskId)root.innerHTML=taskDetailHtml({bundle:ui.taskDetail,sessions:ui.dashboard.sessions,recovery:ui.taskRecovery});
@@ -15,4 +17,5 @@ export async function render(){
   else if(ui.view==='automation')root.innerHTML=automationHtml();
   else if(ui.view==='bridge')root.innerHTML=bridgeHtml();
   else root.innerHTML=settingsHtml();
+  restoreFormState(root,formState);
 }
