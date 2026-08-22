@@ -1,0 +1,36 @@
+{
+  "version": "0.3.2",
+  "tag": "v0.3.2",
+  "tagTarget": "9a64ef36f532f88716d491ff61bdba4a6a9f666d",
+  "name": "Vigilume v0.3.2",
+  "url": "https://github.com/Nolane-x/gptweb/releases/tag/v0.3.2",
+  "publishedAt": "2026-08-22T03:53:05Z",
+  "draft": false,
+  "prerelease": false,
+  "assets": [
+    {
+      "name": "SHA256SUMS.txt",
+      "size": 289,
+      "state": "uploaded",
+      "digest": "sha256:540ec5ac5b5c9ff51e471bc8638fd2b2108ffa661ec2f5a756fd7e21ea330a39"
+    },
+    {
+      "name": "vigilume-v0.3.2-extension.zip",
+      "size": 90038,
+      "state": "uploaded",
+      "digest": "sha256:02f7d4170924cf5320e3e0682e1ac55ddb3958361b16fcc82d301f23208cf57a"
+    },
+    {
+      "name": "vigilume-v0.3.2-native-bridge.zip",
+      "size": 20353,
+      "state": "uploaded",
+      "digest": "sha256:159c317d3a1793e43fb03be4f21e6aaa0cbafdfea1c462fd98f9c34590b13d49"
+    },
+    {
+      "name": "vigilume-v0.3.2-source.zip",
+      "size": 187488,
+      "state": "uploaded",
+      "digest": "sha256:fa3eed2e1c7bec9dfba67c86b584f315264e7623a32dc234a5d6cc9319a8ba3a"
+    }
+  ]
+}
