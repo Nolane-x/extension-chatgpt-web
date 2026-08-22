@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { findHumanLease,buildTaskSendParams,leasesNeedingHeartbeat } from '../src/sidepanel/task-actions.js';
 const now=1_800_000_000_000;
 const bundle={task:{id:'task_1'},workers:[{id:'w1',taskId:'task_1'}],leases:[
- {id:'agent',workerId:'w1',ownerId:'agent-a',ownerType:'agent',status:'ACTIVE',expiresAt:now+50000},
- {id:'expired-human',workerId:'w1',ownerId:'human-ui',ownerType:'human',status:'ACTIVE',expiresAt:now-1},
- {id:'human',workerId:'w1',ownerId:'human-ui',ownerType:'human',status:'ACTIVE',expiresAt:now+80000}
+ {id:'agent',workerId:'w1',ownerId:'agent-a',ownerType:'agent',expiresAt:now+50000,revokedAt:null},
+ {id:'expired-human',workerId:'w1',ownerId:'human-ui',ownerType:'human',expiresAt:now-1,revokedAt:null},
+ {id:'human',workerId:'w1',ownerId:'human-ui',ownerType:'human',expiresAt:now+80000,revokedAt:null}
 ]};
 
 test('findHumanLease returns only live human-ui lease',()=>{
@@ -24,9 +24,15 @@ test('buildTaskSendParams rejects empty prompt or missing lease',()=>{
 
 test('leasesNeedingHeartbeat renews only human-ui leases close to expiry',()=>{
  const near={...bundle,workers:[...bundle.workers,{id:'w2',taskId:'task_1'},{id:'w3',taskId:'task_1'}],leases:[
-  {id:'near',workerId:'w1',ownerId:'human-ui',ownerType:'human',status:'ACTIVE',expiresAt:now+60000},
-  {id:'far',workerId:'w2',ownerId:'human-ui',ownerType:'human',status:'ACTIVE',expiresAt:now+500000},
-  {id:'agent2',workerId:'w3',ownerId:'agent-a',ownerType:'agent',status:'ACTIVE',expiresAt:now+60000}
+  {id:'near',workerId:'w1',ownerId:'human-ui',ownerType:'human',expiresAt:now+60000,revokedAt:null},
+  {id:'far',workerId:'w2',ownerId:'human-ui',ownerType:'human',expiresAt:now+500000,revokedAt:null},
+  {id:'agent2',workerId:'w3',ownerId:'agent-a',ownerType:'agent',expiresAt:now+60000,revokedAt:null}
  ]};
  assert.deepEqual(leasesNeedingHeartbeat(near,now,120000).map(x=>x.lease.id),['near']);
+});
+
+test('human lease helpers accept production lease shape without status',()=>{
+ const real={...bundle,leases:[{id:'real-human',workerId:'w1',ownerId:'human-ui',ownerType:'human',expiresAt:now+60000,revokedAt:null}]};
+ assert.equal(findHumanLease(real,'w1',now)?.id,'real-human');
+ assert.deepEqual(leasesNeedingHeartbeat(real,now,120000).map(x=>x.lease.id),['real-human']);
 });
