@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.3.2 — 2026-08-22
+
+### Completion truth
+- Sửa deadlock `COMPLETING → COMPLETED`: observer dedupe snapshot ổn định từng khiến completion candidate không được re-evaluate sau settle window.
+- Thêm background completion-settle coordinator: cùng candidate chỉ có một timer, candidate đổi thì reschedule, rời `COMPLETING`/đóng tab thì hủy.
+- Settle timer chỉ ép **re-observation**, không ép state; state machine vẫn là authority cuối.
+
+### Side Panel draft stability
+- Sửa toàn bộ form bị reset do `viewRoot.innerHTML` refresh mỗi 2,5 giây.
+- Capture/restore value, checked state, focus và caret cho input/textarea/select có `id` qua mỗi rerender.
+- `Prompt tiếp theo`, automation builder và task forms không còn mất draft vì dashboard refresh.
+
+### Action Trace / observability
+- Thêm privacy-safe bounded Action Trace vào public session/Microscope; không lưu prompt body.
+- Send stages: `SEND_PRECHECK`, `SEND_COMPOSING`, `SEND_DISPATCHED`, `SEND_ACCEPTED`, cùng blocked/failed variants.
+- Queue stages: `QUEUE_CREATED`, `QUEUE_SCHEDULED`, `QUEUE_RECHECK`, `QUEUE_CLAIMED`, `QUEUE_DEFERRED`, `QUEUE_EXECUTED` và failure/cancel/expire/handoff variants.
+- Automation stages: `AUTOMATION_TRIGGERED`, `AUTOMATION_QUEUED`, `AUTOMATION_EXECUTED`, `AUTOMATION_FAILED`.
+- Session Microscope refresh Context Vault timeline liên tục khi đang mở, thay vì chỉ đọc lúc vào màn hình.
+
+### Completion automation
+- Thêm nút **Tự gửi khi HOÀN TẤT** ngay cạnh `Prompt tiếp theo` trong Session Microscope.
+- Tạo one-shot rule khóa đúng tab hiện tại, `whenState=COMPLETED`, `maxRuns=1`, confidence guard và tự bật Automation Engine nếu cần.
+
+### Scheduled prompt automation
+- Automation Builder cho chọn tab đích, trigger theo state hoặc **Đúng thời gian**, `datetime-local`, prompt, delay và max runs.
+- Time rule dùng storage + `chrome.alarms` + single-flight scheduler và được restore sau MV3 service-worker restart.
+- Overdue one-shot rule được replay một lần nếu chưa chạy; disabled/max-runs/already-run rule không được schedule lại.
+- Khi đổi `runAt`, scheduled action cũ tự no-op nhờ runAt version check.
+- Timed `send` mặc định dùng **Safe Queue delivery**, vì vậy đến giờ nhưng ChatGPT đang bận sẽ không chen ngang turn.
+
+### Regression coverage
+- Thêm tests cho completion settle, Side Panel form-state, privacy-safe action trace, durable time automation và Safe Queue default delivery.
+- MCP surface giữ nguyên 39 tools.
+
 ## 0.3.1 — 2026-08-22
 
 ### Product identity
@@ -116,7 +150,7 @@
 - Artifact classifier hợp nhất DOM, filename/MIME, Content-Disposition, CDP Network và Chrome Downloads.
 
 ### Agent bridge
-- MCP tools mới: diagnose, wait, queue, cancel queue, list queue, bulk download.
+- MCP tools mới: diagnose, wait, queue, cancel queue, list queue, bulk artifact download.
 - Giữ capability scopes độc lập; không thêm global agent authority.
 - Native bridge chỉ bind loopback và browser extension giao tiếp với companion qua Native Messaging.
 
