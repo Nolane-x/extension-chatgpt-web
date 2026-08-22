@@ -64,6 +64,12 @@ for (const marker of ['domHealth:s.domHealth||{}','domHealth:saved.domHealth||{}
 }
 for (const requiredModule of ['runtime-state.js','session-runtime.js','action-controller.js','scheduler.js','control-plane.js','lifecycle.js','service-worker.js']) if (!exists(`src/background/${requiredModule}`)) fail(`Thiếu background module: ${requiredModule}`);
 if (!exists('src/core/single-flight.js')) fail('Thiếu single-flight guard module');
+
+const orchestratorModules=['domain.js','leases.js','selection.js','recovery.js','checkpoints.js','artifacts.js','store-codec.js','store.js'];
+for(const module of orchestratorModules)if(!exists(`src/orchestrator/${module}`))fail(`Thiếu Task Orchestrator module: ${module}`);
+const orchestratorRuntime=orchestratorModules.map((module)=>read(`src/orchestrator/${module}`)).join('\n');
+for(const marker of ['LEASE_CONFLICT','NO_ELIGIBLE_WORKER','DOM_DRIFT','nolane-sentinel-orchestrator-v1','checkpoint_','sessionArtifactId'])if(!orchestratorRuntime.includes(marker))fail(`Thiếu Task Orchestrator marker: ${marker}`);
+
 const zipLib = read('scripts/zip-lib.mjs');
 if (!zipLib.includes('DOS_DATE') || !zipLib.includes('createDeterministicZip')) fail('Release ZIP phải dùng deterministic builder nội bộ');
-console.log(`verify-extension: PASS (${sourceFiles.length} source files scanned, ${requiredTools.length} MCP tools checked)`);
+console.log(`verify-extension: PASS (${sourceFiles.length} source files scanned, ${requiredTools.length} MCP tools checked, ${orchestratorModules.length} orchestrator modules)`);
