@@ -14,7 +14,7 @@ import {
   composeOnly, doSend, doStop, continueNewChat,
   downloadArtifact, downloadAllArtifacts
 } from './action-controller.js';
-import { cancelQueued, queueSend, scheduleSystemAction } from './scheduler.js';
+import { cancelQueued, queueSend, scheduleSystemAction, scheduleTimedAutomationRule } from './scheduler.js';
 import { handleOrchestratorCommand } from './orchestrator-runtime.js';
 
 let applySettingsHook=async()=>{};
@@ -46,6 +46,24 @@ export async function waitUntil(tabId,states,timeoutMs=25_000) {
   }
 }
 
+function normalizeAutomationRule(value={}){
+  const rule={...value,id:value.id||crypto.randomUUID(),enabled:value.enabled!==false,trigger:value.trigger==='time'?'time':'state'};
+  rule.action={...(value.action||{})};
+  if(rule.action.type==='send'){
+    rule.action.text=String(rule.action.text||'').trim();
+    if(!rule.action.text)throw new Error('Prompt automation đang trống.');
+  }
+  if(rule.trigger==='time'){
+    rule.tabId=Number(rule.tabId);rule.runAt=Number(rule.runAt);rule.maxRuns=Math.max(1,Number(rule.maxRuns)||1);
+    if(!Number.isInteger(rule.tabId)||rule.tabId<=0)throw new Error('Automation theo thời gian cần một tab ChatGPT đích.');
+    if(!Number.isFinite(rule.runAt)||rule.runAt<=0)throw new Error('Thời gian automation không hợp lệ.');
+  }else{
+    rule.whenState=String(rule.whenState||'COMPLETED').toUpperCase();
+    if(rule.tabId!=null){rule.tabId=Number(rule.tabId);if(!Number.isInteger(rule.tabId)||rule.tabId<=0)delete rule.tabId;}
+  }
+  return rule;
+}
+
 export async function handleCommand(action,params={},context={source:'ui'}) {
   if(String(action||'').startsWith('task'))return handleOrchestratorCommand(action,params,context);
   if(action==='getDashboardState'||action==='listTabs')return {
@@ -68,8 +86,8 @@ export async function handleCommand(action,params={},context={source:'ui'}) {
     if(tab.windowId!=null)await chrome.windows.update(tab.windowId,{focused:true});return {ok:true};
   }
   if(action==='compose')return composeOnly(Number(params.tabId),params.text,params.replace!==false);
-  if(action==='send')return doSend(Number(params.tabId),params.text,{replace:params.replace!==false});
-  if(action==='queueSend')return queueSend(Number(params.tabId),params.text,{...params,source:params.source||'agent'});
+  if(action==='send')return doSend(Number(params.tabId),params.text,{replace:params.replace!==false,source:context.source||'ui'});
+  if(action==='queueSend')return queueSend(Number(params.tabId),params.text,{...params,source:params.source||context.source||'agent'});
   if(action==='listQueue'){
     const tabId=params.tabId==null?null:Number(params.tabId);
     return {queuedActions:runtime.queuedActions.filter((item)=>tabId==null||item.tabId===tabId)};
@@ -99,13 +117,18 @@ export async function handleCommand(action,params={},context={source:'ui'}) {
   if(action==='listAutomations')return {automationRules:runtime.automationRules};
   if(action==='setAutomationEnabled'){
     const rule=runtime.automationRules.find((item)=>item.id===params.ruleId);if(!rule)throw new Error('Không tìm thấy automation.');
-    rule.enabled=Boolean(params.enabled);await chrome.storage.local.set({automationRules:runtime.automationRules});return {ok:true,rule};
+    rule.enabled=Boolean(params.enabled);await chrome.storage.local.set({automationRules:runtime.automationRules});
+    if(rule.enabled&&rule.trigger==='time')await scheduleTimedAutomationRule(rule).catch(()=>{});
+    return {ok:true,rule};
   }
   if(action==='saveAutomation'){
-    const incoming={...(params.rule||{})};if(!incoming.id)incoming.id=crypto.randomUUID();
+    const incoming=normalizeAutomationRule(params.rule||{});
     const index=runtime.automationRules.findIndex((item)=>item.id===incoming.id);
     if(index>=0)runtime.automationRules[index]={...runtime.automationRules[index],...incoming};else runtime.automationRules.push(incoming);
-    await chrome.storage.local.set({automationRules:runtime.automationRules});return {ok:true,rule:runtime.automationRules.find((item)=>item.id===incoming.id)};
+    const rule=runtime.automationRules.find((item)=>item.id===incoming.id);
+    await chrome.storage.local.set({automationRules:runtime.automationRules});
+    if(rule?.enabled&&rule.trigger==='time')await scheduleTimedAutomationRule(rule).catch(()=>{});
+    return {ok:true,rule};
   }
   if(action==='deleteAutomation'){
     runtime.automationRules=runtime.automationRules.filter((item)=>item.id!==params.ruleId);
