@@ -6,6 +6,11 @@ export function findHumanLease(bundle,workerId,now=Date.now()){
   return (bundle?.leases||[]).filter((lease)=>lease.workerId===id&&lease.ownerId===HUMAN_OWNER_ID&&lease.ownerType==='human'&&lease.status==='ACTIVE'&&lease.revokedAt==null&&Number(lease.expiresAt)>Number(now)).sort((a,b)=>Number(b.expiresAt||0)-Number(a.expiresAt||0))[0]||null;
 }
 
+export function leasesNeedingHeartbeat(bundle,now=Date.now(),thresholdMs=120_000){
+  const at=Number(now),threshold=Math.max(0,Number(thresholdMs)||0),workers=new Map((bundle?.workers||[]).map((worker)=>[worker.id,worker]));
+  return (bundle?.leases||[]).filter((lease)=>lease.ownerId===HUMAN_OWNER_ID&&lease.ownerType==='human'&&lease.status==='ACTIVE'&&lease.revokedAt==null&&Number(lease.expiresAt)>at&&Number(lease.expiresAt)-at<=threshold&&workers.get(lease.workerId)?.detachedAt==null).map((lease)=>({worker:workers.get(lease.workerId),lease}));
+}
+
 export function buildTaskSendParams(bundle,workerId,text,now=Date.now()){
   const prompt=String(text||'').trim();if(!prompt)throw new Error('Prompt task đang trống.');
   const taskId=String(bundle?.task?.id||'');if(!taskId)throw new Error('Task không hợp lệ.');
@@ -20,8 +25,12 @@ export function createTaskActionController({ui,command,toast,now=()=>Date.now()}
   async function refreshTaskData({detail=true}={}){
     ui.dashboard.tasks=await command('taskDashboard');
     if(detail&&ui.selectedTaskId){
-      try{ui.taskDetail=await command('taskGet',{taskId:ui.selectedTaskId,includeCheckpoints:true});}
-      catch(error){ui.selectedTaskId=null;ui.taskDetail=null;ui.taskRecovery=null;ui.view='tasks';throw error;}
+      try{
+        ui.taskDetail=await command('taskGet',{taskId:ui.selectedTaskId,includeCheckpoints:true});
+        const renew=leasesNeedingHeartbeat(ui.taskDetail,now(),120_000);
+        for(const item of renew)await command('taskHeartbeatLease',{taskId:ui.selectedTaskId,workerId:item.worker.id,leaseId:item.lease.id,ownerId:HUMAN_OWNER_ID,ttlMs:HUMAN_LEASE_TTL_MS});
+        if(renew.length)ui.taskDetail=await command('taskGet',{taskId:ui.selectedTaskId,includeCheckpoints:true});
+      }catch(error){ui.selectedTaskId=null;ui.taskDetail=null;ui.taskRecovery=null;ui.view='tasks';throw error;}
     }
     return ui.dashboard.tasks;
   }
