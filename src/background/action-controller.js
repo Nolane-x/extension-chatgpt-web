@@ -2,8 +2,15 @@ import { buildContextHandoff } from '../core/handoff.js';
 import { mayRetrySession } from '../core/state-machine.js';
 import { deepCompose, deepClick, attachDeepObserver, detachDeepObserver, markSubmission } from './cdp.js';
 import { appendTimeline } from './context-vault.js';
-import { runtime, sessions, ensureSession, isChatGptUrl, safeError, publicSession, broadcast } from './runtime-state.js';
+import { runtime, sessions, ensureSession, isChatGptUrl, safeError, publicSession, broadcast, recordActionTrace } from './runtime-state.js';
 import { attachIfNeeded, requestSnapshot } from './session-runtime.js';
+
+function trace(tabId,entry){
+  const item=recordActionTrace(tabId,{timestamp:Date.now(),...entry});
+  const session=sessions.get(tabId);
+  if(item&&session)broadcast({kind:'action.trace',trace:item,session:publicSession(session)}).catch(()=>{});
+  return item;
+}
 
 async function withDeepControl(tabId,fn) {
   const tab=await chrome.tabs.get(tabId);if(!isChatGptUrl(tab.url))throw new Error('Tab đích không phải ChatGPT Web.');
@@ -11,15 +18,34 @@ async function withDeepControl(tabId,fn) {
   try{return await fn();}finally{if(!runtime.settings.deepObserve){await detachDeepObserver(tabId);session.deep={attached:false,error:null,lastAttachAttemptAt:Date.now()};}}
 }
 
-export async function doSend(tabId,text,{replace=true}={}) {
-  const session=ensureSession(tabId);await requestSnapshot(tabId).catch(()=>null);
+export async function doSend(tabId,text,{replace=true,source='extension'}={}) {
+  const session=ensureSession(tabId);const value=String(text||'').trim();
+  trace(tabId,{stage:'SEND_PRECHECK',action:'send',source,textChars:value.length,state:session.stateInfo?.state||'UNKNOWN'});
+  await requestSnapshot(tabId).catch(()=>null);
   const allowed=new Set(['IDLE','COMPOSING','COMPLETED']);
-  if(!allowed.has(session.stateInfo?.state))throw new Error(`Không gửi: ChatGPT đang ở trạng thái ${session.stateInfo?.state||'UNKNOWN'}.`);
-  const value=String(text||'').trim();if(!value)throw new Error('Nội dung gửi trống.');
-  await withDeepControl(tabId,()=>deepCompose(tabId,value,{replace,submit:true}));markSubmission(tabId,Date.now());
+  if(!allowed.has(session.stateInfo?.state)){
+    trace(tabId,{stage:'SEND_BLOCKED',action:'send',source,state:session.stateInfo?.state||'UNKNOWN',detail:'unsafe_state'});
+    throw new Error(`Không gửi: ChatGPT đang ở trạng thái ${session.stateInfo?.state||'UNKNOWN'}.`);
+  }
+  if(!value)throw new Error('Nội dung gửi trống.');
+  trace(tabId,{stage:'SEND_COMPOSING',action:'send',source,textChars:value.length,state:session.stateInfo?.state});
+  try{
+    await withDeepControl(tabId,()=>deepCompose(tabId,value,{replace,submit:true}));
+  }catch(error){
+    trace(tabId,{stage:'SEND_FAILED',action:'send',source,error:safeError(error),state:session.stateInfo?.state});
+    throw error;
+  }
+  trace(tabId,{stage:'SEND_DISPATCHED',action:'send',source,textChars:value.length,state:session.stateInfo?.state});
+  markSubmission(tabId,Date.now());
   session.stateInfo={...session.stateInfo,state:'SUBMITTED',confidence:.98,reason:'Đã gửi qua CDP Input.',phaseStartedAt:Date.now(),evidence:['trusted_input_dispatched']};session.turnStartedAt=Date.now();
-  await appendTimeline(tabId,{kind:'action',action:'send',textChars:value.length,source:'extension'}).catch(()=>{});await broadcast({kind:'action.sent',session:publicSession(session)});
-  setTimeout(()=>requestSnapshot(tabId).catch(()=>{}),350);return {ok:true,tabId};
+  await appendTimeline(tabId,{kind:'action',action:'send',textChars:value.length,source}).catch(()=>{});await broadcast({kind:'action.sent',session:publicSession(session)});
+  setTimeout(async()=>{
+    try{
+      const latest=await requestSnapshot(tabId);
+      trace(tabId,{stage:'SEND_ACCEPTED',action:'send',source,state:latest?.state||sessions.get(tabId)?.stateInfo?.state||'UNKNOWN'});
+    }catch(error){trace(tabId,{stage:'SEND_ACK_FAILED',action:'send',source,error:safeError(error)});}
+  },350);
+  return {ok:true,tabId};
 }
 
 export async function doStop(tabId) {
@@ -44,7 +70,7 @@ export async function continueNewChat(tabId,continuation=runtime.settings.handof
   const handoff=buildContextHandoff({title:source.title,url:source.url,conversationId:source.conversationId,turns:source.snapshot.turns,artifacts:source.artifacts,goal:source.snapshot.turns?.filter(x=>x.role==='user').at(-1)?.text},{maxChars:runtime.settings.handoff.maxChars,recentTurns:runtime.settings.handoff.recentTurns});
   const tab=await chrome.tabs.create({url:'https://chatgpt.com/',active:true});if(!tab.id)throw new Error('Không tạo được ChatGPT mới.');
   ensureSession(tab.id,tab);await waitForChatReady(tab.id);if(runtime.settings.deepObserve)await attachIfNeeded(tab.id,true);
-  await doSend(tab.id,`${handoff}\n${String(continuation||'').trim()}`);
+  await doSend(tab.id,`${handoff}\n${String(continuation||'').trim()}`,{source:'handoff'});
   await appendTimeline(tabId,{kind:'handoff',toTabId:tab.id,chars:handoff.length}).catch(()=>{});return {ok:true,newTabId:tab.id,handoffChars:handoff.length};
 }
 
