@@ -1,25 +1,53 @@
 # Changelog
 
-## Unreleased — Task Orchestrator Core
+## 0.3.0 — 2026-08-22
 
-### Multi-ChatGPT task runtime
-- Thêm `TaskRecord` và `WorkerBinding` để gom nhiều tab/conversation ChatGPT vào cùng một công việc.
+### Multi-ChatGPT Task Orchestrator
+- Thêm `TaskRecord` và `WorkerBinding` để gom nhiều tab/conversation ChatGPT vào cùng một công việc có mục tiêu, worker pool và trạng thái riêng.
 - Thêm worker lease độc quyền với TTL 5 giây–10 phút, heartbeat, release idempotent và explicit human takeover.
-- Agent không thể takeover lease hợp lệ của agent khác; action guard có error code ổn định cho conflict/expired/revoked/detached.
+- Agent không thể takeover lease hợp lệ của agent khác; human takeover chỉ tồn tại trong UI nội bộ, không được expose qua MCP.
+- Một live ChatGPT tab không thể đồng thời thuộc hai task.
 - Thêm deterministic worker selection theo session state, health, queue depth, conversation continuity và lease ownership.
 - Worker `DEEP_THINKING`, `STREAMING`, `TOOL_RUNNING` và `DOM_DRIFT` bị loại khỏi send selection mặc định.
+- Task `PAUSED`, `COMPLETED`, `FAILED`, `CANCELLED` bị chặn `taskSend`, `taskQueueSend` và acquire-best bằng `TASK_NOT_ACTIVE`.
 
 ### Resumability / recovery
 - Thêm append-only checkpoint graph với `headCheckpointId`, context reference, handoff metadata và artifact references.
 - Thêm recovery recommendation `WAIT`, `RETRY`, `HANDOFF`, `REPLACE`, `HUMAN_REVIEW`, `NONE`; core không tự click DOM.
 - Conversation limit chỉ được đề xuất handoff khi có checkpoint/context có thể tiếp tục.
+- Worker bị đóng tab sẽ chuyển `detached`; task/checkpoint/artifact history vẫn được giữ để resume hoặc thay worker.
 
 ### Artifact provenance / persistence
-- Thêm task-level artifact provenance dedupe theo `(workerId, sessionArtifactId)` và giữ nguồn phát hiện ban đầu khi download state cập nhật.
+- Thêm task-level Artifact Inbox và provenance dedupe theo `(workerId, sessionArtifactId)`.
+- Download state cập nhật không làm mất nguồn provenance ban đầu.
 - Thêm pure snapshot codec để round-trip task graph, kể cả expired/revoked leases.
 - Thêm IndexedDB `nolane-sentinel-orchestrator-v1` với stores `tasks`, `workers`, `leases`, `checkpoints`, `artifacts`.
-- Thêm public facade `src/orchestrator/index.js`; MCP/UI wave sau không phụ thuộc internal scoring constants.
-- Verifier coi Task Orchestrator modules/DB/contracts là release requirement.
+- Thêm public facade `src/orchestrator/index.js`; UI/MCP không phụ thuộc internal scoring constants.
+
+### Task Control Plane / MCP
+- Nâng MCP surface từ **23 lên 39 tools**.
+- Thêm 16 task tools: create/list/get/update, bind/detach worker, acquire/heartbeat/release lease, acquire-best, send/queue/wait, checkpoint, list artifacts và recovery plan.
+- Thêm scopes `task_read`, `task_write`, `task_lease`; mặc định vẫn chỉ `observe` + `open`.
+- `task_send` và `task_queue_send` vẫn bắt buộc scope `send` cộng với lease hợp lệ.
+- Native Bridge và extension dùng chung `src/core/task-protocol.js`, tránh schema/tool drift.
+- Native release ZIP mang `package.json` + shared task registry để Node.js 20 giữ đúng ESM semantics.
+- `taskDashboard` là command nội bộ cho human UI, không làm tăng MCP authority.
+
+### NUI Mission Control
+- Thêm first-class **Công việc / Tasks** trong Chrome Side Panel.
+- Task list hiển thị mục tiêu, worker count, live lease và artifact count; checkpoint bundles được lấy đầy đủ thay vì metric giả 0.
+- Task Detail có worker pool, lease owner/TTL, Acquire Best Worker, explicit Human Takeover, Release, Detach worker, Recovery Plan, Checkpoint chain và Artifact Inbox.
+- Task composer chỉ hiện khi task `ACTIVE` và `human-ui` thật sự giữ live lease.
+- Human lease được heartbeat khi người dùng đang làm việc trong Task Detail; heartbeat race không làm văng người dùng khỏi task.
+- UI hiểu đúng production lease record (`revokedAt` + `expiresAt`, không phụ thuộc trường `status` giả định).
+- Cổng AI render trực tiếp `AGENT_SCOPES` canonical registry, tự có `task_read`, `task_write`, `task_lease` và không có god mode.
+- Mission Control có copy đầy đủ Tiếng Việt/English, state-aware controls, responsive layout và reduced-motion support.
+- Mọi dữ liệu task/worker/artifact động đều escape trước khi render.
+
+### Verification / release hardening
+- Verifier coi 11 orchestrator modules, 5 Mission Control modules, internal task dashboard wiring, canonical agent scopes, task-state guard và Node 20 native packaging là release requirements.
+- Thêm integration contract cho nav → views → actions → orchestrator runtime → AI Port scope registry.
+- Giữ deterministic ZIP, checksum verification và GitHub Release-object proof pipeline.
 
 ## 0.2.1 — 2026-08-22
 
