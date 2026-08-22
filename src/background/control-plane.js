@@ -15,6 +15,7 @@ import {
   downloadArtifact, downloadAllArtifacts
 } from './action-controller.js';
 import { cancelQueued, queueSend, scheduleSystemAction } from './scheduler.js';
+import { handleOrchestratorCommand } from './orchestrator-runtime.js';
 
 let applySettingsHook=async()=>{};
 
@@ -45,7 +46,8 @@ export async function waitUntil(tabId,states,timeoutMs=25_000) {
   }
 }
 
-export async function handleCommand(action,params={}) {
+export async function handleCommand(action,params={},context={source:'ui'}) {
+  if(String(action||'').startsWith('task'))return handleOrchestratorCommand(action,params,context);
   if(action==='getDashboardState'||action==='listTabs')return {
     sessions:[...sessions.values()].map(publicSession),settings:runtime.settings,
     automationRules:runtime.automationRules,queuedActions:runtime.queuedActions,bridge:runtime.bridgeStatus
@@ -122,7 +124,7 @@ export async function handleAgentRequest(payload) {
   const hasTab=Number.isInteger(tabId)&&tabId>0,start=Date.now();
   if(hasTab)appendTimeline(tabId,{kind:'agent.action.started',action:parsed.action,scope:parsed.requiredScope,requestId:parsed.id??null}).catch(()=>{});
   try{
-    const result=await handleCommand(parsed.action,parsed.params);
+    const result=await handleCommand(parsed.action,parsed.params,{source:'agent',requestId:parsed.id??null,requiredScope:parsed.requiredScope});
     if(hasTab)appendTimeline(tabId,{kind:'agent.action.succeeded',action:parsed.action,scope:parsed.requiredScope,durationMs:Date.now()-start}).catch(()=>{});
     return result;
   }catch(error){
