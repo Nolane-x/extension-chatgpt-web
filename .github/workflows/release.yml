@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag release, ví dụ v0.2.0'
+        description: 'Tag release, ví dụ v0.3.1'
         required: true
         type: string
 
@@ -51,7 +51,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add "release/v${{ steps.meta.outputs.version }}"
           if ! git diff --cached --quiet; then
-            git commit -m "chore: mirror Nolane Sentinel ${{ steps.meta.outputs.tag }} artifacts"
+            git commit -m "chore: mirror Vigilume ${{ steps.meta.outputs.tag }} artifacts"
             git push origin HEAD:main
           fi
       - name: Tạo tag release nếu chưa có
@@ -61,7 +61,7 @@ jobs:
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             echo "$TAG đã tồn tại; giữ nguyên tag."
           else
-            git tag -a "$TAG" -m "Nolane Sentinel $TAG" "$(git rev-parse HEAD)"
+            git tag -a "$TAG" -m "Vigilume $TAG" "$(git rev-parse HEAD)"
             git push origin "$TAG"
           fi
       - name: Publish hoặc cập nhật GitHub Release
@@ -72,15 +72,15 @@ jobs:
           TAG="${{ steps.meta.outputs.tag }}"
           VERSION="${{ steps.meta.outputs.version }}"
           ASSETS=(
-            "dist/nolane-sentinel-v${VERSION}-extension.zip"
-            "dist/nolane-sentinel-v${VERSION}-native-bridge.zip"
-            "dist/nolane-sentinel-v${VERSION}-source.zip"
+            "dist/vigilume-v${VERSION}-extension.zip"
+            "dist/vigilume-v${VERSION}-native-bridge.zip"
+            "dist/vigilume-v${VERSION}-source.zip"
             "dist/SHA256SUMS.txt"
           )
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "${ASSETS[@]}" --clobber
           else
-            gh release create "$TAG" "${ASSETS[@]}" --title "Nolane Sentinel $TAG" --notes-file "RELEASE_NOTES_v${VERSION}.md"
+            gh release create "$TAG" "${ASSETS[@]}" --title "Vigilume $TAG" --notes-file "RELEASE_NOTES_v${VERSION}.md"
           fi
       - name: Ghi bằng chứng GitHub Release đã publish
         env:
