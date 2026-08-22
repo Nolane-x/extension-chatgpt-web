@@ -3,12 +3,12 @@ const HUMAN_LEASE_TTL_MS=600_000;
 
 export function findHumanLease(bundle,workerId,now=Date.now()){
   const id=String(workerId||'');
-  return (bundle?.leases||[]).filter((lease)=>lease.workerId===id&&lease.ownerId===HUMAN_OWNER_ID&&lease.ownerType==='human'&&lease.status==='ACTIVE'&&lease.revokedAt==null&&Number(lease.expiresAt)>Number(now)).sort((a,b)=>Number(b.expiresAt||0)-Number(a.expiresAt||0))[0]||null;
+  return (bundle?.leases||[]).filter((lease)=>lease.workerId===id&&lease.ownerId===HUMAN_OWNER_ID&&lease.ownerType==='human'&&lease.revokedAt==null&&(lease.status==null||lease.status==='ACTIVE')&&Number(lease.expiresAt)>Number(now)).sort((a,b)=>Number(b.expiresAt||0)-Number(a.expiresAt||0))[0]||null;
 }
 
 export function leasesNeedingHeartbeat(bundle,now=Date.now(),thresholdMs=120_000){
   const at=Number(now),threshold=Math.max(0,Number(thresholdMs)||0),workers=new Map((bundle?.workers||[]).map((worker)=>[worker.id,worker]));
-  return (bundle?.leases||[]).filter((lease)=>lease.ownerId===HUMAN_OWNER_ID&&lease.ownerType==='human'&&lease.status==='ACTIVE'&&lease.revokedAt==null&&Number(lease.expiresAt)>at&&Number(lease.expiresAt)-at<=threshold&&workers.get(lease.workerId)?.detachedAt==null).map((lease)=>({worker:workers.get(lease.workerId),lease}));
+  return (bundle?.leases||[]).filter((lease)=>lease.ownerId===HUMAN_OWNER_ID&&lease.ownerType==='human'&&lease.revokedAt==null&&(lease.status==null||lease.status==='ACTIVE')&&Number(lease.expiresAt)>at&&Number(lease.expiresAt)-at<=threshold&&workers.get(lease.workerId)?.detachedAt==null).map((lease)=>({worker:workers.get(lease.workerId),lease}));
 }
 
 export function buildTaskSendParams(bundle,workerId,text,now=Date.now()){
