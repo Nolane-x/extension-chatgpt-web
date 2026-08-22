@@ -82,3 +82,34 @@ jobs:
           else
             gh release create "$TAG" "${ASSETS[@]}" --title "Nolane Sentinel $TAG" --notes-file "RELEASE_NOTES_v${VERSION}.md"
           fi
+      - name: Ghi bằng chứng GitHub Release đã publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        shell: bash
+        run: |
+          mkdir -p verification
+          gh release view "$TAG" --json url,tagName,name,isDraft,isPrerelease,publishedAt,assets > "$RUNNER_TEMP/release.json"
+          export TAG_TARGET="$(git rev-list -n 1 "$TAG")"
+          node <<'NODE'
+          const fs=require('fs');
+          const release=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/release.json','utf8'));
+          const proof={
+            version:process.env.VERSION,
+            tag:release.tagName,
+            tagTarget:process.env.TAG_TARGET,
+            name:release.name,
+            url:release.url,
+            publishedAt:release.publishedAt,
+            draft:release.isDraft,
+            prerelease:release.isPrerelease,
+            assets:(release.assets||[]).map(a=>({name:a.name,size:a.size,state:a.state||null,digest:a.digest||null})).sort((a,b)=>a.name.localeCompare(b.name))
+          };
+          fs.writeFileSync(`verification/release-v${process.env.VERSION}.published.json`,JSON.stringify(proof,null,2)+'\n');
+          NODE
+          git add "verification/release-v${VERSION}.published.json"
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: record published GitHub Release $TAG"
+            git push origin HEAD:main
+          fi
