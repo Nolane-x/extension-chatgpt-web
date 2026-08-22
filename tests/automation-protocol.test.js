@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { evaluateAutomationRules, nextRetryDelay } from '../src/core/automation.js';
+import { automationDueAt, evaluateAutomationRules, nextRetryDelay } from '../src/core/automation.js';
 import { MCP_TOOLS, validateAgentRequest } from '../src/core/protocol.js';
 import { splitComposerText } from '../src/core/composer.js';
 
@@ -12,6 +12,16 @@ test('automation respects state, cooldown, and max runs', () => {
   ];
   const actions=evaluateAutomationRules(session,rules,5000);
   assert.deepEqual(actions.map(x=>x.ruleId),['a']);
+});
+
+test('time automation exposes a durable due time and replays overdue rule once after restart',()=>{
+  const future={id:'t1',enabled:true,trigger:'time',runAt:10_000,tabId:7,maxRuns:1,runCount:0,action:{type:'send',text:'hello'}};
+  assert.equal(automationDueAt(future,5_000),10_000);
+  const overdue={...future,runAt:4_000};
+  assert.equal(automationDueAt(overdue,5_000),5_050);
+  assert.equal(automationDueAt({...future,runCount:1},5_000),null);
+  assert.equal(automationDueAt({...future,enabled:false},5_000),null);
+  assert.equal(automationDueAt({...future,lastRunAt:10_001},12_000),null);
 });
 
 test('retry delay is bounded exponential', () => {
