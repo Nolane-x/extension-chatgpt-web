@@ -1,7 +1,7 @@
 {
-  "version": "0.3.0",
-  "sourceCommit": "7cdcdba0b4b74605226bcad78a5ec1ad77f6b5a2",
-  "verifiedAt": "2026-08-22T02:43:48Z",
+  "version": "0.3.1",
+  "sourceCommit": "04f2fb39b15510073e5cf612e3152b5e56a764d1",
+  "verifiedAt": "2026-08-22T03:00:11Z",
   "tests": "PASS",
   "staticRuntimeVerification": "PASS",
   "deterministicPackaging": "PASS",
