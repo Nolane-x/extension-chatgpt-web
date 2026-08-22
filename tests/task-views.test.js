@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { taskListHtml,taskDetailHtml } from '../src/sidepanel/task-views.js';
+import { ui } from '../src/sidepanel/model.js';
 const now=1_800_000_000_000;
 const bundle={
  task:{id:'task_1',title:'Build <script>x</script>',goal:'Ship safely',status:'ACTIVE',updatedAt:now-1000},
@@ -49,4 +50,15 @@ test('non-active task does not render acquire-best or prompt composer even with 
  assert.ok(!html.includes('data-action="task-acquire-best"'));
  assert.ok(!html.includes('data-action="task-send"'));
  assert.ok(!html.includes('data-action="task-queue-send"'));
+});
+
+test('English Mission Control does not leak Vietnamese operational copy',()=>{
+ const prior=ui.dashboard.settings;ui.dashboard.settings={...(prior||{}),locale:'en'};
+ try{
+  const human={...bundle,leases:[{...bundle.leases[0],ownerId:'human-ui',ownerType:'human'}]};
+  const html=taskListHtml({taskBundles:[human],sessions:[],now})+taskDetailHtml({bundle:human,sessions:[],recovery:null,now});
+  assert.doesNotMatch(html,/Mục tiêu|Giao việc|Bấm Kế hoạch|Đang hoạt động|Cần xử lý|Hoàn tất task/);
+  assert.match(html,/Recovery plan/);
+  assert.match(html,/Assign the next job/);
+ }finally{ui.dashboard.settings=prior;}
 });
