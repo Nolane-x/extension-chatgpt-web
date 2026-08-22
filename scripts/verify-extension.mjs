@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath,pathToFileURL } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const fail = (message) => { throw new Error(message); };
@@ -44,13 +44,24 @@ for (const full of sourceFiles.filter((file) => /\.(?:html|js|mjs)$/.test(file))
   if (/\beval\s*\(|\bnew\s+Function\s*\(/.test(text)) fail(`Dynamic code execution bị cấm trong ${relative}`);
 }
 
-const protocol = read('src/core/protocol.js');
-const requiredTools = ['chatgpt_list_tabs','chatgpt_observe','chatgpt_diagnose','chatgpt_wait_until','chatgpt_open','chatgpt_compose','chatgpt_send','chatgpt_queue_send','chatgpt_list_queue','chatgpt_cancel_queued','chatgpt_stop','chatgpt_retry','chatgpt_continue_new_chat','chatgpt_list_artifacts','chatgpt_download_artifact','chatgpt_download_all_artifacts','chatgpt_get_download','chatgpt_get_context','chatgpt_delete_context','automation_list','automation_set_enabled','automation_save','automation_delete'];
-for (const tool of requiredTools) if (!protocol.includes(`'${tool}'`) || !nativeHost.includes(`'${tool}'`)) fail(`MCP tool không đồng bộ: ${tool}`);
+const protocolModule=await import(pathToFileURL(path.join(root,'src/core/protocol.js')).href);
+const toolNames=protocolModule.MCP_TOOLS.map((tool)=>tool.name);
+const requiredBaseTools=['chatgpt_list_tabs','chatgpt_observe','chatgpt_diagnose','chatgpt_wait_until','chatgpt_open','chatgpt_compose','chatgpt_send','chatgpt_queue_send','chatgpt_list_queue','chatgpt_cancel_queued','chatgpt_stop','chatgpt_retry','chatgpt_continue_new_chat','chatgpt_list_artifacts','chatgpt_download_artifact','chatgpt_download_all_artifacts','chatgpt_get_download','chatgpt_get_context','chatgpt_delete_context','automation_list','automation_set_enabled','automation_save','automation_delete'];
+const requiredTaskTools=['task_create','task_list','task_get','task_update','task_bind_worker','task_detach_worker','task_acquire_lease','task_heartbeat_lease','task_release_lease','task_acquire_best_worker','task_send','task_queue_send','task_wait','task_checkpoint','task_list_artifacts','task_recovery_plan'];
+if(toolNames.length!==39)fail(`MCP tool count phải là 39, hiện tại ${toolNames.length}`);
+for(const tool of [...requiredBaseTools,...requiredTaskTools])if(!toolNames.includes(tool))fail(`MCP protocol thiếu tool: ${tool}`);
+const protocol=read('src/core/protocol.js'),taskProtocol=read('src/core/task-protocol.js');
+for(const tool of requiredBaseTools)if(!protocol.includes(`'${tool}'`)||!nativeHost.includes(`'${tool}'`))fail(`Base MCP tool không đồng bộ: ${tool}`);
+for(const tool of requiredTaskTools)if(!taskProtocol.includes(`'${tool}'`))fail(`Task MCP registry thiếu: ${tool}`);
+for(const scope of ['task_read','task_write','task_lease'])if(!taskProtocol.includes(`'${scope}'`))fail(`Thiếu task capability scope: ${scope}`);
+if(!nativeHost.includes("TASK_MCP_TOOLS,TASK_TOOL_ACTION")||!nativeHost.includes('...TASK_TOOL_ACTION')||!nativeHost.includes('.concat(TASK_MCP_TOOLS)'))fail('Native Bridge phải dùng shared task protocol registry');
+if(taskProtocol.includes('task_human_takeover')||toolNames.some((name)=>name.includes('human_takeover')))fail('Human takeover không được xuất hiện trong agent MCP protocol');
 if (!nativeHost.includes("const PROTOCOL='2026-07-28'")) fail('Native bridge phải pin MCP 2026-07-28');
 if (!nativeHost.includes("const HOST='127.0.0.1'")) fail('Native bridge chỉ được bind loopback');
 if (nativeHost.includes("u.protocol==='chrome-extension:'")) fail('HTTP bridge không được trust mọi chrome-extension origin');
 for (const installer of ['native-host/install_host.sh','native-host/uninstall_host.sh','native-host/install_host.bat','native-host/uninstall_host.bat','native-host/nolane-sentinel-native-host','native-host/nolane-sentinel-native-host.bat']) if (!exists(installer)) fail(`Thiếu native installer/runtime: ${installer}`);
+const packageRelease=read('scripts/package-release.mjs');
+if(!packageRelease.includes("'src/core/task-protocol.js'"))fail('Native Bridge release ZIP phải chứa shared task protocol registry');
 
 const worker = read('src/background/service-worker.js');
 if (!worker.includes("bootstrapLifecycle")) fail('Service worker entrypoint phải bootstrap lifecycle module');
@@ -59,19 +70,19 @@ const backgroundRuntime = fs.readdirSync(backgroundDir)
   .filter((name)=>name.endsWith('.js'))
   .map((name)=>fs.readFileSync(path.join(backgroundDir,name),'utf8'))
   .join('\n');
-for (const marker of ['domHealth:s.domHealth||{}','domHealth:saved.domHealth||{}',"chrome.alarms.create('sentinel:watchdog'",'queueSend','waitUntil','downloadAllArtifacts','initializeNativeBridge','installSchedulerHooks','createSingleFlightGuard','missing_durable_action']) {
+for (const marker of ['domHealth:s.domHealth||{}','domHealth:saved.domHealth||{}',"chrome.alarms.create('sentinel:watchdog'",'queueSend','waitUntil','downloadAllArtifacts','initializeNativeBridge','installSchedulerHooks','createSingleFlightGuard','missing_durable_action','orchestratorSync','initializeOrchestratorRuntime','handleOrchestratorCommand','detachOrchestratorTab']) {
   if (!backgroundRuntime.includes(marker)) fail(`Thiếu runtime release marker: ${marker}`);
 }
-for (const requiredModule of ['runtime-state.js','session-runtime.js','action-controller.js','scheduler.js','control-plane.js','lifecycle.js','service-worker.js']) if (!exists(`src/background/${requiredModule}`)) fail(`Thiếu background module: ${requiredModule}`);
+for (const requiredModule of ['runtime-state.js','session-runtime.js','action-controller.js','scheduler.js','control-plane.js','lifecycle.js','orchestrator-runtime.js','service-worker.js']) if (!exists(`src/background/${requiredModule}`)) fail(`Thiếu background module: ${requiredModule}`);
 if (!exists('src/core/single-flight.js')) fail('Thiếu single-flight guard module');
 
-const orchestratorModules=['domain.js','leases.js','selection.js','recovery.js','checkpoints.js','artifacts.js','store-codec.js','store.js','index.js'];
+const orchestratorModules=['domain.js','leases.js','selection.js','recovery.js','checkpoints.js','artifacts.js','store-codec.js','store.js','index.js','service.js','commands.js'];
 for(const module of orchestratorModules)if(!exists(`src/orchestrator/${module}`))fail(`Thiếu Task Orchestrator module: ${module}`);
 const orchestratorRuntime=orchestratorModules.map((module)=>read(`src/orchestrator/${module}`)).join('\n');
-for(const marker of ['LEASE_CONFLICT','NO_ELIGIBLE_WORKER','DOM_DRIFT','nolane-sentinel-orchestrator-v1','checkpoint_','sessionArtifactId','openOrchestratorStore','assertWorkerLease'])if(!orchestratorRuntime.includes(marker))fail(`Thiếu Task Orchestrator marker: ${marker}`);
+for(const marker of ['LEASE_CONFLICT','NO_ELIGIBLE_WORKER','DOM_DRIFT','nolane-sentinel-orchestrator-v1','checkpoint_','sessionArtifactId','openOrchestratorStore','assertWorkerLease','createOrchestratorService','createTaskCommandRouter','WORKER_ALREADY_BOUND'])if(!orchestratorRuntime.includes(marker))fail(`Thiếu Task Orchestrator marker: ${marker}`);
 const orchestratorFacade=read('src/orchestrator/index.js');
-for(const exported of ['createTask','acquireLease','selectWorker','createCheckpoint','recommendWorkerRecovery','mergeTaskArtifacts','loadOrchestratorSnapshot'])if(!orchestratorFacade.includes(exported))fail(`Task Orchestrator facade thiếu export: ${exported}`);
+for(const exported of ['createTask','acquireLease','selectWorker','createCheckpoint','recommendWorkerRecovery','mergeTaskArtifacts','loadOrchestratorSnapshot','createOrchestratorService'])if(!orchestratorFacade.includes(exported))fail(`Task Orchestrator facade thiếu export: ${exported}`);
 
 const zipLib = read('scripts/zip-lib.mjs');
 if (!zipLib.includes('DOS_DATE') || !zipLib.includes('createDeterministicZip')) fail('Release ZIP phải dùng deterministic builder nội bộ');
-console.log(`verify-extension: PASS (${sourceFiles.length} source files scanned, ${requiredTools.length} MCP tools checked, ${orchestratorModules.length} orchestrator modules)`);
+console.log(`verify-extension: PASS (${sourceFiles.length} source files scanned, ${toolNames.length} MCP tools checked, ${orchestratorModules.length} orchestrator modules)`);
