@@ -16,7 +16,8 @@ export const runtime={
   hooks:{
     stateChanged:async()=>{},
     sessionPulse:async()=>{},
-    queueReconcile:async()=>{}
+    queueReconcile:async()=>{},
+    orchestratorSync:async()=>{}
   }
 };
 
