@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
+import { TASK_MCP_TOOLS,TASK_TOOL_ACTION } from '../src/core/task-protocol.js';
 
 const HOST='127.0.0.1';
 const PORT=Number(process.env.NOLANE_SENTINEL_PORT||17892);
@@ -41,13 +42,14 @@ const tools=[
   ['automation_set_enabled','Bật/tắt automation.',{ruleId:{type:'string'},enabled:{type:'boolean'}},['ruleId','enabled']],
   ['automation_save','Tạo/cập nhật automation.',{rule:{type:'object'}},['rule']],
   ['automation_delete','Xóa automation.',{ruleId:{type:'string'}},['ruleId']]
-].map(([name,description,properties,required])=>({name,description,inputSchema:{type:'object',properties,required,additionalProperties:false}}));
+].map(([name,description,properties,required])=>({name,description,inputSchema:{type:'object',properties,required,additionalProperties:false}})).concat(TASK_MCP_TOOLS);
 
 const toolAction={
   chatgpt_list_tabs:'listTabs',chatgpt_observe:'observe',chatgpt_diagnose:'diagnose',chatgpt_wait_until:'waitUntil',chatgpt_open:'openChat',chatgpt_compose:'compose',chatgpt_send:'send',
   chatgpt_queue_send:'queueSend',chatgpt_list_queue:'listQueue',chatgpt_cancel_queued:'cancelQueued',chatgpt_stop:'stop',chatgpt_retry:'retry',chatgpt_continue_new_chat:'continueNewChat',
   chatgpt_list_artifacts:'listArtifacts',chatgpt_download_artifact:'downloadArtifact',chatgpt_download_all_artifacts:'downloadAllArtifacts',chatgpt_get_download:'getDownload',chatgpt_get_context:'getContext',
-  chatgpt_delete_context:'deleteContext',automation_list:'listAutomations',automation_set_enabled:'setAutomationEnabled',automation_save:'saveAutomation',automation_delete:'deleteAutomation'
+  chatgpt_delete_context:'deleteContext',automation_list:'listAutomations',automation_set_enabled:'setAutomationEnabled',automation_save:'saveAutomation',automation_delete:'deleteAutomation',
+  ...TASK_TOOL_ACTION
 };
 
 function ensureToken(){
