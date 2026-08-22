@@ -1,6 +1,6 @@
 # Task Orchestrator Core
 
-Task Orchestrator là lớp điều phối nằm **trên Session Runtime** của Nolane Sentinel. Session Runtime vẫn quyết định một tab ChatGPT đang `THINKING`, `DEEP_THINKING`, `STREAMING`, `DOM_DRIFT` hay `COMPLETED`; Orchestrator chỉ dùng state đó để quản lý công việc nhiều worker một cách an toàn.
+Task Orchestrator là lớp điều phối nằm **trên Session Runtime** của Vigilume. Session Runtime vẫn quyết định một tab ChatGPT đang `THINKING`, `DEEP_THINKING`, `STREAMING`, `DOM_DRIFT` hay `COMPLETED`; Orchestrator chỉ dùng state đó để quản lý công việc nhiều worker một cách an toàn.
 
 ## Vì sao cần Task Orchestrator
 
@@ -53,7 +53,7 @@ Bất biến quan trọng:
 4. Lease expired/revoked không thể được heartbeat làm sống lại.
 5. Agent không được takeover agent khác.
 6. Human takeover explicit có thể revoke lease agent hiện tại.
-7. Mọi action nguy hiểm ở integration wave phải gọi `assertWorkerLease()` ngay trước CDP action.
+7. Mọi action nguy hiểm ở integration wave phải gọi `assertWorkerLease()` ngay trước action thực thi.
 
 ## Worker Selection
 
@@ -103,7 +103,7 @@ Task chỉ thay `headCheckpointId`. Checkpoint cũ không bị sửa, vì vậy 
 
 Các kind hiện hỗ trợ:
 
-`CREATED`, `PROGRESS`, `HANDOFF`, `RECOVERY`, `ARTIFACT`, `COMPLETED`, `MANUAL`.
+`CREATED`, `PROGRESS`, `HANDOFF`, `RECOVERY`, `ARTIFACT`, `DECISION`, `FAILURE`, `COMPLETED`, `MANUAL`.
 
 ## Artifact Provenance
 
@@ -117,15 +117,17 @@ Dedupe key:
 
 Artifact cùng session ID nhưng từ worker khác vẫn là hai provenance khác nhau. Khi download state thay đổi, Orchestrator cập nhật `downloadId`/`downloadState` nhưng giữ nguyên `detectedAt` và nguồn provenance ban đầu.
 
-Hash file local sẽ được bổ sung ở Native Bridge wave sau, vì Chrome extension core không tự ý đọc filesystem.
+Hash file local thuộc phạm vi Native Bridge/filesystem workflow; Chrome extension core không tự ý đọc filesystem.
 
 ## Persistence
 
-Database:
+Database hiện dùng legacy compatibility identifier:
 
 ```text
 nolane-sentinel-orchestrator-v1
 ```
+
+Tên này được giữ để **không làm mất task graph khi nâng cấp thương hiệu sang Vigilume**. Nó là ID lưu trữ nội bộ, không phải tên sản phẩm hoặc security authority.
 
 Object stores:
 
@@ -146,20 +148,7 @@ Indexes:
 
 ## Public API
 
-Downstream code chỉ nên import:
-
-```js
-import {
-  createTask, updateTask, createWorkerBinding, detachWorker,
-  acquireLease, heartbeatLease, releaseLease, assertWorkerLease,
-  selectWorker, createCheckpoint, recommendWorkerRecovery,
-  mergeTaskArtifacts,
-  openOrchestratorStore, loadOrchestratorSnapshot,
-  saveTask, saveWorker, saveLease, saveCheckpoint, saveArtifacts
-} from '../orchestrator/index.js';
-```
-
-Không import scoring constants hay internal state sets trực tiếp.
+Downstream code chỉ nên import qua `src/orchestrator/index.js`; không import scoring constants hay internal state sets trực tiếp.
 
 ## Bảo mật
 
@@ -171,16 +160,6 @@ Không import scoring constants hay internal state sets trực tiếp.
 - Không execute artifact tải về.
 - Context chỉ tham chiếu Context Vault hiện có.
 
-## Wave tiếp theo
+## Control Plane / Mission Control
 
-Control Plane / MCP sẽ bổ sung task-level commands như:
-
-- create/list/get task;
-- bind/unbind worker;
-- acquire/heartbeat/release lease;
-- acquire best worker;
-- task send/queue/wait;
-- task checkpoints/artifacts;
-- recovery plan.
-
-Sau đó NUI Mission Control sẽ hiển thị task graph, worker pool, lease owner, recovery recommendation, artifact inbox và human takeover.
+Task Control Plane bổ sung create/list/get task, bind/detach worker, acquire/heartbeat/release lease, acquire-best worker, task send/queue/wait, checkpoints/artifacts và recovery plan. NUI Mission Control hiển thị task graph, worker pool, lease owner, recovery recommendation, artifact inbox và human takeover.
