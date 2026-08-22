@@ -5,7 +5,7 @@
 Vigilume không chỉ nhìn xem nút Stop còn hay mất. Nó hợp nhất DOM, public status, CDP/Network, liveness, completion stability, tool activity, Context Vault, Safe Queue, Task Orchestrator, worker lease và artifact provenance để hiểu một phiên ChatGPT đang thực sự ở đâu trong vòng đời công việc.
 
 > **Repository:** `https://github.com/Nolane-x/gptweb`  
-> **Phiên bản:** `0.3.1`  
+> **Phiên bản:** `0.3.2`  
 > **Tên sản phẩm:** **Vigilume**  
 > **Chrome:** 120+ / Manifest V3  
 > **MCP:** `2026-07-28`  
@@ -38,6 +38,8 @@ Một phản hồi dài có thể gần như đứng hình nhưng ChatGPT vẫn 
 
 **`DEEP_THINKING` không bị coi là treo và không được retry.** Đây là khác biệt quan trọng giữa một supervisor có state truth và một auto-clicker dựa trên timeout.
 
+Từ v0.3.2, completion settle không còn phụ thuộc vào một DOM mutation ngẫu nhiên. Nếu ChatGPT đã dừng generation, có response thật, có non-empty answer và completion control, Vigilume sẽ re-observe đúng sau settle window để xác nhận `COMPLETING → COMPLETED` thay vì có thể mắc ở `COMPLETING` vô hạn khi DOM đứng yên.
+
 ## 2. Mất kết nối không còn đồng nghĩa với phải ngồi canh
 
 Recovery Engine có thể:
@@ -64,6 +66,13 @@ Re-observe → guard → send
 ```
 
 Queue được lưu durable và có thể đi qua conversation handoff.
+
+Trong **Session Microscope**, ô **Prompt tiếp theo** có hai workflow khác nhau:
+
+- **Thêm vào Safe Queue** — prompt được gửi khi session ở `IDLE` hoặc `COMPLETED`;
+- **Tự gửi khi HOÀN TẤT** — tạo một automation one-shot, khóa đúng tab hiện tại, chờ state `COMPLETED` rồi gửi prompt.
+
+Draft trong ô Prompt tiếp theo được giữ qua dashboard refresh; Vigilume bảo toàn value, focus và caret thay vì phá input sau mỗi 2,5 giây.
 
 ## 4. Conversation đạt giới hạn vẫn có thể tiếp tục có kiểm soát
 
@@ -164,6 +173,59 @@ Local AI Agent / CLI
 
 Extension vẫn là authority cuối. Mặc định agent chỉ có `observe` + `open`.
 
+## 11. Automation theo state hoặc đúng thời gian
+
+Trang **Tự động hóa** cho phép chọn rõ:
+
+- ChatGPT tab đích;
+- trigger **Sau khi thấy state** hoặc **Đúng thời gian**;
+- state như `COMPLETED`, `IDLE`, `STALLED`…;
+- thời gian local bằng `datetime-local`;
+- prompt;
+- delay sau state;
+- max runs;
+- bật Automation Engine ngay sau khi lưu.
+
+Time rule được lưu durable bằng `chrome.storage.local` + `chrome.alarms`. Nếu service worker ngủ rồi thức lại, rule chưa chạy được restore; overdue one-shot rule có thể chạy lại một lần nếu chưa từng được thực thi.
+
+**Timed send mặc định không chen ngang một turn đang bận.** Đến giờ hẹn, Vigilume đưa prompt vào Safe Queue; nếu ChatGPT đang `THINKING`, `DEEP_THINKING`, `STREAMING` hoặc `TOOL_RUNNING`, prompt chờ tới state an toàn rồi mới được gửi.
+
+## 12. Nhìn thấy extension đang gửi ở bước nào
+
+Session Microscope có **Luồng gửi lệnh** riêng. Trace không lưu prompt body; nó chỉ hiển thị các stage kỹ thuật cần để audit.
+
+Ví dụ send thành công:
+
+```text
+SEND_PRECHECK
+→ SEND_COMPOSING
+→ SEND_DISPATCHED
+→ SEND_ACCEPTED
+```
+
+Safe Queue:
+
+```text
+QUEUE_CREATED
+→ QUEUE_SCHEDULED
+→ QUEUE_RECHECK
+→ QUEUE_CLAIMED
+→ SEND_*
+→ QUEUE_EXECUTED
+```
+
+Automation theo giờ có thể hiện:
+
+```text
+AUTOMATION_TRIGGERED
+→ AUTOMATION_QUEUED
+→ QUEUE_*
+→ SEND_*
+→ AUTOMATION_EXECUTED
+```
+
+Nếu bị guard chặn hoặc có lỗi, trace hiện các stage như `SEND_BLOCKED`, `QUEUE_DEFERRED`, `QUEUE_FAILED`, `AUTOMATION_FAILED`. Context Timeline trong Microscope cũng được cập nhật liên tục khi màn hình đang mở.
+
 ---
 
 # NUI Mission Control
@@ -187,7 +249,11 @@ Dành cho toàn bộ ChatGPT tabs:
 Dành cho một phiên:
 
 - state/evidence sâu;
-- Context Vault timeline;
+- Context Vault timeline cập nhật khi đang mở;
+- **Luồng gửi lệnh** privacy-safe;
+- Prompt tiếp theo không mất draft khi refresh;
+- **Thêm vào Safe Queue**;
+- **Tự gửi khi HOÀN TẤT**;
 - bounded diagnostics;
 - Stop;
 - Retry có backoff;
@@ -337,7 +403,7 @@ Mặc định chỉ `observe` + `open`.
 
 ## Từ release ZIP
 
-1. Tải `vigilume-v0.3.1-extension.zip`.
+1. Tải `vigilume-v0.3.2-extension.zip`.
 2. Giải nén.
 3. Mở `chrome://extensions`.
 4. Bật **Developer mode**.
@@ -364,7 +430,7 @@ Vigilume vẫn hoạt động nếu không cài Native Bridge. Bridge chỉ cầ
 
 Yêu cầu Node.js 20+.
 
-1. Giải nén `vigilume-v0.3.1-native-bridge.zip`.
+1. Giải nén `vigilume-v0.3.2-native-bridge.zip`.
 2. Copy Extension ID từ `chrome://extensions`.
 3. Chạy installer.
 
@@ -383,7 +449,7 @@ macOS/Linux:
 4. Bật **Cổng AI → Native Bridge**.
 5. Chỉ cấp những scope agent thực sự cần.
 
-Native Messaging host chính là `com.vigilume.bridge`. Extension v0.3.1 có fallback tạm thời tới legacy host cũ để người dùng nâng cấp không bị mất bridge ngay; installer mới chỉ tạo registration Vigilume.
+Native Messaging host chính là `com.vigilume.bridge`. Extension v0.3.1+ có fallback tạm thời tới legacy host cũ để người dùng nâng cấp không bị mất bridge ngay; installer mới chỉ tạo registration Vigilume.
 
 Token mới nằm tại `~/.vigilume/bridge-token.json`.
 
@@ -424,13 +490,13 @@ Packager tạo:
 
 ```text
 dist/
-├─ vigilume-v0.3.1-extension.zip
-├─ vigilume-v0.3.1-native-bridge.zip
-├─ vigilume-v0.3.1-source.zip
+├─ vigilume-v0.3.2-extension.zip
+├─ vigilume-v0.3.2-native-bridge.zip
+├─ vigilume-v0.3.2-source.zip
 └─ SHA256SUMS.txt
 ```
 
-GitHub Verify ghi `verification/latest.json` chỉ sau khi tests + verifier + deterministic package + checksum đều PASS. GitHub Release workflow còn ghi `verification/release-v0.3.1.published.json` sau khi `gh release view` xác nhận Release object thật.
+GitHub Verify ghi `verification/latest.json` chỉ sau khi tests + verifier + deterministic package + checksum đều PASS. GitHub Release workflow còn ghi `verification/release-v0.3.2.published.json` sau khi `gh release view` xác nhận Release object thật.
 
 ---
 
@@ -456,7 +522,7 @@ Xem [`SECURITY.md`](SECURITY.md) và [`DISCLAIMER.md`](DISCLAIMER.md).
 
 # Điều đã kiểm chứng và điều không được phép nói quá
 
-Unit/static/integration CI có thể chứng minh state logic, queue, lease, task graph, protocol parity, native bridge startup, packaging và UI contracts.
+Unit/static/integration CI có thể chứng minh state logic, completion settle, form-state preservation, queue, automation scheduling, action trace, lease, task graph, protocol parity, native bridge startup, packaging và UI contracts.
 
 Nhưng ChatGPT Web thay đổi theo account/model/UI rollout. Vigilume không tuyên bố mọi selector đã E2E-pass trên mọi tài khoản nếu không có browser evidence từ phiên đăng nhập thật tương ứng.
 
@@ -479,11 +545,12 @@ Thiết kế vì vậy ưu tiên:
 - [`SECURITY.md`](SECURITY.md) — security model.
 - [`DISCLAIMER.md`](DISCLAIMER.md) — miễn trừ trách nhiệm.
 - [`CHANGELOG.md`](CHANGELOG.md) — lịch sử phiên bản.
+- [`RELEASE_NOTES_v0.3.2.md`](RELEASE_NOTES_v0.3.2.md) — bugfix/automation release v0.3.2.
 
 ---
 
 ## Tóm tắt một câu
 
-**Vigilume biến nhiều ChatGPT Web tab từ các cửa sổ độc lập thành một runtime có state truth, recovery, Safe Queue, artifact workflow, task graph, lease authority, Mission Control và MCP cho AI agent — nhưng vẫn ưu tiên quyền kiểm soát của người dùng và fail-closed khi UI không còn chắc chắn.**
+**Vigilume biến nhiều ChatGPT Web tab từ các cửa sổ độc lập thành một runtime có state truth, recovery, Safe Queue, scheduled automation, action trace, artifact workflow, task graph, lease authority, Mission Control và MCP cho AI agent — nhưng vẫn ưu tiên quyền kiểm soát của người dùng và fail-closed khi UI không còn chắc chắn.**
 
 Vigilume là phần mềm độc lập, không liên kết hay được OpenAI chứng thực. Xem [`DISCLAIMER.md`](DISCLAIMER.md).
