@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.3.1 — 2026-08-22
+
+### Product identity
+- Đổi tên sản phẩm hiện hành thành **Vigilume**; repository vẫn giữ `Nolane-x/gptweb`.
+- Loại tên thương hiệu cũ khỏi manifest, locale, Side Panel, README, SECURITY, Native Bridge runtime/installer, package metadata và release pipeline hiện hành.
+- Package hiện hành là `vigilume-browser-runtime`.
+- Artifact release mới dùng prefix `vigilume-vX.Y.Z-*`.
+
+### Native Bridge migration
+- Native Messaging host chính đổi sang `com.vigilume.bridge`.
+- Extension thử host Vigilume trước và chỉ fallback tới legacy `com.nolane.sentinel_bridge` để không làm đứt companion v0.3.0 đang cài.
+- Installer mới chỉ đăng ký host Vigilume; uninstaller dọn cả current + legacy registration.
+- Runtime mới dùng `~/.vigilume/bridge-token.json`, `VIGILUME_PORT` và server identity `vigilume-bridge`.
+- Một số legacy environment/storage identifiers được giữ có chủ đích để bảo toàn tương thích/dữ liệu; chúng không còn là branding sản phẩm.
+
+### Disclaimer / safety communication
+- Thêm `DISCLAIMER.md` đầy đủ bằng tiếng Việt, nêu rõ dự án độc lập, không được OpenAI chứng thực, phần mềm cung cấp AS IS, trách nhiệm khi cấp quyền agent, file/artifact, dữ liệu, điều khoản dịch vụ và giới hạn trách nhiệm trong phạm vi pháp luật cho phép.
+- README đưa bản miễn trừ rút gọn lên gần đầu tài liệu.
+- Source ZIP và Native Bridge ZIP đều mang `DISCLAIMER.md`.
+
+### Verification
+- Thêm branding regression test cho manifest/locales/package/UI/native host/release artifacts.
+- Verifier khóa Vigilume branding, repo identity `Nolane-x/gptweb`, Native Bridge migration, disclaimer inclusion và artifact prefix mới.
+- Native host/integration/installer/package tests được chuyển sang runtime Vigilume.
+
 ## 0.3.0 — 2026-08-22
 
 ### Multi-ChatGPT Task Orchestrator
