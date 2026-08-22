@@ -59,6 +59,7 @@ export async function initializeOrchestratorRuntime(){
 
 export async function handleOrchestratorCommand(action,params={},context={source:'ui'}){
   await initializeOrchestratorRuntime();
+  if(action==='taskDashboard')return getOrchestratorDashboard();
   return routeTaskCommand(action,params,context);
 }
 
