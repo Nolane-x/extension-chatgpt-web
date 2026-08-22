@@ -1,0 +1,36 @@
+{
+  "version": "0.3.0",
+  "tag": "v0.3.0",
+  "tagTarget": "f8532af2b414f93be40858447d19d6d17e2690c3",
+  "name": "Nolane Sentinel v0.3.0",
+  "url": "https://github.com/Nolane-x/extension-chatgpt-web/releases/tag/v0.3.0",
+  "publishedAt": "2026-08-22T02:37:12Z",
+  "draft": false,
+  "prerelease": false,
+  "assets": [
+    {
+      "name": "nolane-sentinel-v0.3.0-extension.zip",
+      "size": 84389,
+      "state": "uploaded",
+      "digest": "sha256:220b940d1854ce666a357d10db38cf4b7183a437ef9683e157b4d09b83f814e7"
+    },
+    {
+      "name": "nolane-sentinel-v0.3.0-native-bridge.zip",
+      "size": 16592,
+      "state": "uploaded",
+      "digest": "sha256:587d166445f756bb6b4fc1ad300280c9d90054376ce544d7c20ee8fde7686e52"
+    },
+    {
+      "name": "nolane-sentinel-v0.3.0-source.zip",
+      "size": 172144,
+      "state": "uploaded",
+      "digest": "sha256:14e7c0dc7d2e3ddded6985fc45e7db62c386e6297170b8700cfe48aa319a3ca0"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "size": 310,
+      "state": "uploaded",
+      "digest": "sha256:9bd035d14604ab036f0b0784c9ac1502046e4fdaf168bcce88b66a797e299f3d"
+    }
+  ]
+}
