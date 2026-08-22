@@ -1,6 +1,7 @@
 import { nextRetryDelay } from '../core/automation.js';
 import { mayRetrySession } from '../core/state-machine.js';
 import { validateAgentRequest } from '../core/protocol.js';
+import { mergeSettingsPatch } from '../core/settings.js';
 import { createNativeBridge } from '../bridge/native-client.js';
 import { captureDeepDiagnostics, readTelemetry } from './cdp.js';
 import { appendTimeline, deleteContext, getContext } from './context-vault.js';
@@ -109,7 +110,7 @@ export async function handleCommand(action,params={}) {
     await chrome.storage.local.set({automationRules:runtime.automationRules});return {ok:true};
   }
   if(action==='updateSettings'){
-    runtime.settings=mergeSettings({...runtime.settings,...params.patch});
+    runtime.settings=mergeSettings(mergeSettingsPatch(runtime.settings,params.patch||{}));
     await chrome.storage.local.set({settings:runtime.settings});await applySettingsHook();return {ok:true,settings:runtime.settings};
   }
   if(action==='showDownload'){await chrome.downloads.show(Number(params.downloadId));return {ok:true};}
