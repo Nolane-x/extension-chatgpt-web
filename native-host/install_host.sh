@@ -1,9 +1,9 @@
 #!/bin/sh
 set -eu
 
-HOST_NAME="com.nolane.sentinel_bridge"
+HOST_NAME="com.vigilume.bridge"
 EXTENSION_ID="${1:-}"
-FLAVOR="${NOLANE_CHROME_FLAVOR:-chrome}"
+FLAVOR="${VIGILUME_CHROME_FLAVOR:-${NOLANE_CHROME_FLAVOR:-chrome}}"
 
 if [ -z "$EXTENSION_ID" ]; then
   echo "Cách dùng: ./install_host.sh <CHROME_EXTENSION_ID>" >&2
@@ -22,7 +22,7 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-HOST_PATH="$SCRIPT_DIR/nolane-sentinel-native-host"
+HOST_PATH="$SCRIPT_DIR/vigilume-native-host"
 chmod 700 "$HOST_PATH"
 
 case "$(uname -s)" in
@@ -49,8 +49,8 @@ node - "$MANIFEST_PATH" "$HOST_PATH" "$EXTENSION_ID" <<'NODE'
 const fs=require('node:fs');
 const [file,hostPath,extensionId]=process.argv.slice(2);
 const manifest={
-  name:'com.nolane.sentinel_bridge',
-  description:'Nolane Sentinel local AI/MCP bridge',
+  name:'com.vigilume.bridge',
+  description:'Vigilume local AI/MCP bridge',
   path:hostPath,
   type:'stdio',
   allowed_origins:[`chrome-extension://${extensionId}/`]
@@ -59,6 +59,6 @@ fs.writeFileSync(file,JSON.stringify(manifest,null,2)+'\n',{mode:0o600});
 NODE
 chmod 600 "$MANIFEST_PATH" 2>/dev/null || true
 
-echo "Đã cài Native Messaging host: $MANIFEST_PATH"
+echo "Đã cài Vigilume Native Messaging host: $MANIFEST_PATH"
 echo "Extension ID: $EXTENSION_ID"
 echo "Khởi động lại Chrome nếu bridge chưa kết nối ngay."
