@@ -1,8 +1,8 @@
-# Nolane Sentinel Agent Protocol v0.3
+# Vigilume Agent Protocol v0.3
 
 ## Boundary
 
-Extension là authority cuối về tab/state/action. Native bridge không tự động hóa ChatGPT trực tiếp; nó chỉ chuyển yêu cầu đã xác thực sang extension qua Chrome Native Messaging. Quyền cuối cùng luôn do `agentScopes` trong extension quyết định.
+Extension là authority cuối về tab/state/action. Native Bridge không tự động hóa ChatGPT trực tiếp; nó chỉ chuyển yêu cầu đã xác thực sang extension qua Chrome Native Messaging. Quyền cuối cùng luôn do `agentScopes` trong extension quyết định.
 
 Task Control Plane bổ sung một authority thứ hai cho action cấp task: **lease hợp lệ trên worker**. Có `send` scope nhưng lease sai/hết hạn/revoked vẫn không được gửi.
 
@@ -47,7 +47,7 @@ Ví dụ task-level:
 
 ## Event stream
 
-`GET /events` dùng SSE riêng của Sentinel để phát các event như:
+`GET /events` dùng SSE riêng của Vigilume để phát các event như:
 
 - `state.changed`
 - `session.pulse`
@@ -194,7 +194,7 @@ queue_send -> queued -> state safe -> durable schedule -> re-observe -> send
 
 ## Wait contract
 
-`chatgpt_wait_until` và `task_wait` nhận `states[]` + `timeoutMs`, tối đa 25 giây mỗi call để nằm dưới native bridge request timeout.
+`chatgpt_wait_until` và `task_wait` nhận `states[]` + `timeoutMs`, tối đa 25 giây mỗi call để nằm dưới Native Bridge request timeout.
 
 `task_wait` resolve `workerId → tabId` tại runtime, nên agent không phải giữ tab ID riêng sau khi đã có worker binding.
 
@@ -244,6 +244,12 @@ Yêu cầu agent có target tab tạo timeline event:
 - `agent.action.failed`
 
 Task mutations tự phát `task.*` event qua cùng Native Bridge event stream. Audit không tự ghi toàn bộ prompt vào agent event.
+
+## Native Bridge migration v0.3.1
+
+Native Messaging host chính là `com.vigilume.bridge`. Extension thử host này trước; nếu companion v0.3.0 chưa được nâng cấp, extension có thể fallback tạm thời tới legacy host `com.nolane.sentinel_bridge`.
+
+Fallback này chỉ phục vụ tương thích nâng cấp. Installer hiện hành chỉ tạo `com.vigilume.bridge`; uninstaller dọn cả current + legacy registration.
 
 ## MCP tools — 39 tools
 
